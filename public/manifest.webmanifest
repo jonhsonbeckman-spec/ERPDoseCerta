@@ -1,0 +1,15 @@
+{
+  "name": "DoseCerta — Controle do MEI",
+  "short_name": "DoseCerta",
+  "description": "Agenda de aplicações, estoque com rastreabilidade e financeiro para MEI da saúde.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c2a21",
+  "theme_color": "#0c2a21",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
