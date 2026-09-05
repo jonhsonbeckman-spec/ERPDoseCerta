@@ -6,9 +6,11 @@ import { Avatar, Badge, EmptyState, Segmented, StatusBadge, useToast } from "../
 import { IcCalendar, IcChevronL, IcClipboard, IcPencil, IcPlus, IcSearch, IcSyringe, IcTrash, IcUsers, IcWhats } from "../components/icons";
 import { brl, dueStatus, fmtCPF, fmtMed, fmtShort, nextDate, productName, waLink } from "../lib/utils";
 import { Protocolos } from "./clients/Protocolos";
+import { Prontuario } from "./clients/Prontuario";
 
 type Filter = "todos" | "hoje" | "atrasados" | "emdia" | "inativos";
 type Aba = "pacientes" | "protocolos";
+type DetalheAba = "resumo" | "prontuario";
 
 export function Clients() {
   const { state, saveClient, deleteClient } = useStore();
@@ -19,6 +21,7 @@ export function Clients() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("todos");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detalheAba, setDetalheAba] = useState<DetalheAba>("resumo");
 
   const withStatus = useMemo(() => state.clients.map((c) => ({ c, d: dueStatus(c) })), [state.clients]);
 
@@ -172,6 +175,8 @@ export function Clients() {
                         <p className="mt-0.5 text-[12.5px] text-ink-soft">
                           <span className="num">{selected.phone || "sem telefone"}</span>
                           {selected.cpf ? <> · CPF <span className="num">{fmtCPF(selected.cpf)}</span></> : <span className="text-amber-700"> · CPF não informado</span>}
+                          {selected.dataNascimento ? <> · nasc. {fmtMed(selected.dataNascimento)}</> : null}
+                          {selected.profissao ? <> · {selected.profissao}</> : null}
                           {" "}· desde {fmtMed(selected.since)}
                         </p>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -206,6 +211,26 @@ export function Clients() {
                     </div>
                   </div>
 
+                  {/* sub-abas do paciente */}
+                  <div className="anim-rise flex gap-1 rounded-xl border border-line bg-paper p-1">
+                    {([
+                      { key: "resumo", label: "Resumo" },
+                      { key: "prontuario", label: "Prontuário" },
+                    ] as { key: DetalheAba; label: string }[]).map((t) => (
+                      <button
+                        key={t.key}
+                        onClick={() => setDetalheAba(t.key)}
+                        className={`btn-press flex-1 rounded-lg px-3 py-2 text-[13px] font-bold transition-colors ${
+                          detalheAba === t.key ? "bg-pine-900 text-white shadow-sm" : "text-ink-soft hover:bg-mist hover:text-ink"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {detalheAba === "resumo" ? (
+                    <>
                   <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <div className="card p-5">
                       <h3 className="eyebrow">Protocolo</h3>
@@ -268,6 +293,10 @@ export function Clients() {
                       </ul>
                     )}
                   </div>
+                    </>
+                  ) : (
+                    <Prontuario cliente={selected} />
+                  )}
                 </div>
               )}
             </section>

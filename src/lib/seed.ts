@@ -96,6 +96,11 @@ const vazio = (): AppState => ({
   quotes: [],
   protocolos: [],
   servicos: [],
+  anamneses: [],
+  avaliacoesFisicas: [],
+  termos: [],
+  sessoes: [],
+  historico: [],
 });
 
 export function buildEmpty(): AppState {
@@ -106,6 +111,7 @@ export function buildEmpty(): AppState {
     pedidos: [], entradas: [], movimentacoes: [],
     fichas: [], alocacoes: [], clients: [], transactions: [],
     employees: [], terminations: [], quotes: [], protocolos: [], servicos: [],
+    anamneses: [], avaliacoesFisicas: [], termos: [], sessoes: [], historico: [],
   };
 }
 

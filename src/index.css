@@ -118,3 +118,23 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- impressão do TCLE (gera PDF pelo navegador) ---------- */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    background: #fff;
+  }
+  @page {
+    margin: 16mm;
+  }
+}

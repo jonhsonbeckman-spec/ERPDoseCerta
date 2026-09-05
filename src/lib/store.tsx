@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
-  AppState, Client, Employee, Fornecedor, ItemFichaTecnica, PayMethod, PedidoCompra, Produto, Quote, Result,
-  ServicoAplicacao, Termination, Transaction,
+  Anamnese, AppState, AvaliacaoFisica, Client, Employee, Fornecedor, ItemFichaTecnica, PayMethod,
+  PedidoCompra, Produto, Quote, Result, ServicoAplicacao, SessaoAplicacao, TermoConsentimento,
+  Termination, Transaction, ViaAplicacao,
 } from "../types";
 import { buildEmpty, buildSeed, SEED_FORNECEDORES, SEED_INSUMOS } from "./seed";
 import { todayISO, uid } from "./utils";
@@ -73,6 +74,7 @@ function migrateV1(old: V1State): AppState {
     fichas, alocacoes: [], clients,
     transactions: old.transactions ?? [],
     employees: [], terminations: [], quotes: [], protocolos: [], servicos: [],
+    anamneses: [], avaliacoesFisicas: [], termos: [], sessoes: [], historico: [],
   };
 }
 
@@ -89,6 +91,11 @@ function load(): AppState {
           quotes: s.quotes ?? [],
           protocolos: s.protocolos ?? [],
           servicos: s.servicos ?? [],
+          anamneses: s.anamneses ?? [],
+          avaliacoesFisicas: s.avaliacoesFisicas ?? [],
+          termos: s.termos ?? [],
+          sessoes: s.sessoes ?? [],
+          historico: s.historico ?? [],
         };
       }
     }
@@ -167,6 +174,25 @@ export interface StoreApi {
   toggleProtocolo(id: string): void;
   atualizarDataDose(idProtocolo: string, idDose: string, novaData: string): void;
   aplicarDose(args: AplicarDoseArgs): Result & { servico?: ServicoAplicacao };
+  /* prontuário clínico */
+  salvarAnamnese(a: Omit<Anamnese, "id" | "createdAt"> & { id?: string }): void;
+  addAvaliacao(a: Omit<AvaliacaoFisica, "id" | "createdAt" | "imc">): void;
+  criarTermo(pacienteId: string, tipoProtocolo: string): TermoConsentimento;
+  assinarLocal(termoId: string, assinaturaDataUrl: string): void;
+  anexarTermoGovBr(termoId: string, arquivo: { nome: string; tipo: string; tamanho: number; dataUrl: string }): void;
+  excluirTermo(termoId: string): void;
+  registrarAplicacao(args: {
+    pacienteId: string;
+    dataHora: string;
+    procedimento: string;
+    protocolo: string;
+    via: ViaAplicacao;
+    local: string;
+    substancias: { nome: string; dose: string; lote: string }[];
+    material: string;
+    evolucao: string;
+    idDose?: string;
+  }): Result;
   importState(s: AppState): Result;
   wipeAll(): void;
   resetData(): void;
@@ -419,6 +445,91 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState(r.state);
         return { ok: true, servico: r.servico };
       },
+
+      /* ---------- prontuário clínico ---------- */
+      salvarAnamnese(a) {
+        setState((prev) => {
+          const agora = `${todayISO()}T12:00:00`;
+          if (a.id) {
+            return { ...prev, anamneses: prev.anamneses.map((x) => (x.id === a.id ? { ...a, id: a.id, createdAt: x.createdAt } : x)) };
+          }
+          return { ...prev, anamneses: [{ ...a, id: uid(), createdAt: agora }, ...prev.anamneses] };
+        });
+      },
+      addAvaliacao(a) {
+        setState((prev) => {
+          const imc = a.alturaM > 0 ? Math.round((a.peso / (a.alturaM * a.alturaM)) * 100) / 100 : 0;
+          const full: AvaliacaoFisica = { ...a, imc, id: uid(), createdAt: `${todayISO()}T12:00:00` };
+          return { ...prev, avaliacoesFisicas: [full, ...prev.avaliacoesFisicas] };
+        });
+      },
+      criarTermo(pacienteId, tipoProtocolo) {
+        const full: TermoConsentimento = {
+          id: uid(), pacienteId, createdAt: `${todayISO()}T12:00:00`, tipoProtocolo,
+          metodoAssinatura: "local", status: "pendente_assinatura",
+        };
+        setState((prev) => ({ ...prev, termos: [full, ...prev.termos] }));
+        return full;
+      },
+      assinarLocal(termoId, assinaturaDataUrl) {
+        setState((prev) => ({
+          ...prev,
+          termos: prev.termos.map((t) =>
+            t.id === termoId
+              ? { ...t, assinaturaLocal: assinaturaDataUrl, assinadoEm: `${todayISO()}T12:00:00`, status: "assinado_local" as const, metodoAssinatura: "local" as const }
+              : t,
+          ),
+        }));
+      },
+      anexarTermoGovBr(termoId, arquivo) {
+        setState((prev) => ({
+          ...prev,
+          termos: prev.termos.map((t) =>
+            t.id === termoId
+              ? { ...t, arquivoAssinadoGovBr: arquivo, assinadoEm: `${todayISO()}T12:00:00`, status: "assinado_govbr" as const, metodoAssinatura: "govbr" as const }
+              : t,
+          ),
+        }));
+      },
+      excluirTermo(termoId) {
+        setState((prev) => ({ ...prev, termos: prev.termos.filter((t) => t.id !== termoId) }));
+      },
+      registrarAplicacao(args) {
+        const cliente = state.clients.find((c) => c.id === args.pacienteId);
+        if (!cliente) return { ok: false, error: "Paciente não encontrado." };
+        if (!args.procedimento.trim()) return { ok: false, error: "Informe o procedimento realizado." };
+        if (!args.substancias.length) return { ok: false, error: "Adicione ao menos uma substância com lote." };
+        if (args.substancias.some((s) => !s.lote.trim())) return { ok: false, error: "Informe o lote de todas as substâncias (rastreabilidade)." };
+
+        // se vinculado a uma dose de protocolo, aplica a baixa de estoque + financeiro primeiro (atômico)
+        let base = state;
+        if (args.idDose) {
+          const proto = state.protocolos.find((p) => p.idCliente === args.pacienteId && p.doses.some((d) => d.id === args.idDose));
+          if (!proto) return { ok: false, error: "Dose de protocolo não encontrada." };
+          const diaDaAplicacao = args.dataHora.slice(0, 10);
+          const r = aplicarDoseEngine(state, {
+            idProtocolo: proto.id, idDose: args.idDose, data: diaDaAplicacao,
+            valor: proto.valorPorDose, metodo: "pix", localAplicacao: args.local, observacoes: args.evolucao,
+          });
+          if (r.faltas.length) return { ok: false, error: r.faltas.join(" • ") };
+          base = r.state;
+        }
+
+        const sessao: SessaoAplicacao = {
+          id: uid(), pacienteId: args.pacienteId, dataHora: args.dataHora, protocoloAplicado: args.protocolo,
+          substanciasUtilizadas: args.substancias.map((s) => ({ ...s, id: uid() })),
+          localAplicacao: args.local, lote: args.substancias[0].lote, observacoes: args.evolucao,
+        };
+        const hist = {
+          id: uid(), pacienteId: args.pacienteId, dataHora: args.dataHora, procedimentoRealizado: args.procedimento,
+          protocoloAplicacao: args.protocolo,
+          medicamentoAplicado: args.substancias.map((s) => `${s.nome} ${s.dose}`.trim()).join(", "),
+          materialUtilizado: args.material, localAplicacao: args.local, tipoAplicacao: args.via, evolucaoTratamento: args.evolucao,
+        };
+        setState({ ...base, sessoes: [sessao, ...base.sessoes], historico: [hist, ...base.historico] });
+        return { ok: true };
+      },
+
       importState(s) {
         if (!s || s.v !== 2 || !Array.isArray(s.transactions) || !Array.isArray(s.produtos))
           return { ok: false, error: "Arquivo de backup inválido ou incompatível." };
@@ -426,6 +537,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...s,
           employees: s.employees ?? [], terminations: s.terminations ?? [],
           quotes: s.quotes ?? [], protocolos: s.protocolos ?? [], servicos: s.servicos ?? [],
+          anamneses: s.anamneses ?? [], avaliacoesFisicas: s.avaliacoesFisicas ?? [], termos: s.termos ?? [],
+          sessoes: s.sessoes ?? [], historico: s.historico ?? [],
         });
         return { ok: true };
       },

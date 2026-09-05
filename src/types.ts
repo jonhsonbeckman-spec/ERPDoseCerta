@@ -138,6 +138,9 @@ export interface Client {
   name: string;
   phone: string;
   cpf?: string;
+  dataNascimento?: string;
+  contatoEmergencia?: string;
+  profissao?: string;
   fichaTecnicaId?: string;
   productId: string;
   frequencyDays: number;
@@ -145,6 +148,93 @@ export interface Client {
   notes: string;
   active: boolean;
   since: string;
+}
+
+/* ---------- Anamnese ---------- */
+export interface Anamnese {
+  id: string;
+  pacienteId: string;
+  createdAt: string;
+  alergias: string[];
+  alergiasOutras: string;
+  condicoesMetabolicas: string[];
+  /* alertas críticos para GLP-1 / Tirzepatida */
+  pancreatite: boolean;
+  gastroparesia: boolean;
+  historicoTireoide: boolean;
+  historicoGastrointestinal: {
+    refluxo: boolean;
+    nauseaFrequente: boolean;
+    cirurgiaBariatrica: boolean;
+    constipacao: boolean;
+    outra: string;
+  };
+  medicamentosEmUso: string;
+  gestanteLactante: boolean;
+  outrasCondicoes: string;
+}
+
+/* ---------- Avaliação física (antropometria) ---------- */
+export interface AvaliacaoFisica {
+  id: string;
+  pacienteId: string;
+  createdAt: string;
+  peso: number; // kg
+  alturaM: number; // m
+  imc: number; // calculado automaticamente
+  circAbdominalCm?: number;
+  pregaCutaneaMm?: number;
+}
+
+/* ---------- TCLE ---------- */
+export type TermoStatus = "pendente_assinatura" | "assinado_local" | "assinado_govbr";
+
+export interface TermoConsentimento {
+  id: string;
+  pacienteId: string;
+  createdAt: string;
+  tipoProtocolo: string;
+  ipAssinatura?: string;
+  assinaturaLocal?: string; // dataURL da assinatura digital no app
+  assinadoEm?: string;
+  metodoAssinatura: "local" | "govbr";
+  status: TermoStatus;
+  arquivoAssinadoGovBr?: { nome: string; tipo: string; tamanho: number; dataUrl: string };
+}
+
+/* ---------- Sessões de aplicação ---------- */
+export type ViaAplicacao = "subcutanea" | "intravenosa" | "intramuscular" | "cutanea" | "intradermica";
+
+export interface SubstanciaUtilizada {
+  id: string;
+  nome: string;
+  dose: string;
+  lote: string;
+}
+
+export interface SessaoAplicacao {
+  id: string;
+  pacienteId: string;
+  dataHora: string; // YYYY-MM-DDTHH:mm
+  protocoloAplicado: string;
+  substanciasUtilizadas: SubstanciaUtilizada[];
+  localAplicacao: string;
+  lote: string;
+  observacoes: string;
+}
+
+/* ---------- Histórico do paciente ---------- */
+export interface HistoricoEntry {
+  id: string;
+  pacienteId: string;
+  dataHora: string;
+  procedimentoRealizado: string;
+  protocoloAplicacao: string;
+  medicamentoAplicado: string;
+  materialUtilizado: string;
+  localAplicacao: string;
+  tipoAplicacao: ViaAplicacao;
+  evolucaoTratamento: string;
 }
 
 /* ---------- Financeiro ---------- */
@@ -315,6 +405,11 @@ export interface AppState {
   quotes: Quote[];
   protocolos: Protocolo[];
   servicos: ServicoAplicacao[];
+  anamneses: Anamnese[];
+  avaliacoesFisicas: AvaliacaoFisica[];
+  termos: TermoConsentimento[];
+  sessoes: SessaoAplicacao[];
+  historico: HistoricoEntry[];
 }
 
 export type Result = { ok: true } | { ok: false; error: string };

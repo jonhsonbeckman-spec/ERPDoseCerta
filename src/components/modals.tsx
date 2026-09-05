@@ -285,6 +285,9 @@ function ClientModal({ client, onClose }: { client: Client | "new" | null; onClo
   const [nome, setNome] = useState("");
   const [phone, setPhone] = useState("");
   const [cpf, setCpf] = useState("");
+  const [nascimento, setNascimento] = useState("");
+  const [emergencia, setEmergencia] = useState("");
+  const [profissao, setProfissao] = useState("");
   const [fichaId, setFichaId] = useState("");
   const [freq, setFreq] = useState("7");
   const [notes, setNotes] = useState("");
@@ -296,6 +299,9 @@ function ClientModal({ client, onClose }: { client: Client | "new" | null; onClo
     setNome(editing?.name ?? "");
     setPhone(editing?.phone ?? "");
     setCpf(editing?.cpf ?? "");
+    setNascimento(editing?.dataNascimento ?? "");
+    setEmergencia(editing?.contatoEmergencia ?? "");
+    setProfissao(editing?.profissao ?? "");
     setFichaId(editing?.fichaTecnicaId ?? state.fichas.find((f) => f.ativo)?.id ?? "");
     setFreq(String(editing?.frequencyDays ?? 7));
     setNotes(editing?.notes ?? "");
@@ -312,6 +318,9 @@ function ClientModal({ client, onClose }: { client: Client | "new" | null; onClo
       name: nome.trim(),
       phone: phone.trim(),
       cpf: onlyDigits(cpf),
+      dataNascimento: nascimento || undefined,
+      contatoEmergencia: emergencia.trim() || undefined,
+      profissao: profissao.trim() || undefined,
       fichaTecnicaId: fichaId || undefined,
       productId: f?.itens.find((i) => i.tipoConsumo === "INSUMO_PRINCIPAL")?.idProduto ?? "",
       frequencyDays: Math.max(1, parseInt(freq) || 7),
@@ -337,6 +346,15 @@ function ClientModal({ client, onClose }: { client: Client | "new" | null; onClo
           </Field>
           <Field label="CPF (rastreabilidade)">
             <input className="field-input num" value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" />
+          </Field>
+          <Field label="Data de nascimento">
+            <input className="field-input num" type="date" value={nascimento} max={todayISO()} onChange={(e) => setNascimento(e.target.value)} />
+          </Field>
+          <Field label="Contato de emergência">
+            <input className="field-input num" value={emergencia} onChange={(e) => setEmergencia(e.target.value)} placeholder="Nome · (11) 9…" />
+          </Field>
+          <Field label="Profissão">
+            <input className="field-input" value={profissao} onChange={(e) => setProfissao(e.target.value)} placeholder="Ex.: Professora" />
           </Field>
           <Field label="Protocolo (ficha)">
             <select className="field-input" value={fichaId} onChange={(e) => setFichaId(e.target.value)}>
