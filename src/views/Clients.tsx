@@ -4,13 +4,13 @@ import { useStore } from "../lib/store";
 import { useUi } from "../components/modals";
 import { Avatar, Badge, EmptyState, Segmented, StatusBadge, useToast } from "../components/ui";
 import { IcCalendar, IcChevronL, IcClipboard, IcPencil, IcPlus, IcSearch, IcSyringe, IcTrash, IcUsers, IcWhats } from "../components/icons";
-import { brl, dueStatus, fmtCPF, fmtMed, fmtShort, nextDate, productName, waLink } from "../lib/utils";
+import { brl, diffDays, dueStatus, fmtCPF, fmtMed, fmtShort, nextDate, productName, todayISO, waLink } from "../lib/utils";
 import { Protocolos } from "./clients/Protocolos";
 import { Prontuario } from "./clients/Prontuario";
 
 type Filter = "todos" | "hoje" | "atrasados" | "emdia" | "inativos";
 type Aba = "pacientes" | "protocolos";
-type DetalheAba = "resumo" | "prontuario";
+type DetalheAba = "resumo" | "agenda" | "prontuario";
 
 export function Clients() {
   const { state, saveClient, deleteClient } = useStore();
@@ -185,9 +185,9 @@ export function Clients() {
                               <IcSyringe size={14} /> Registrar aplicação
                             </button>
                           )}
-                          {selected.active && !temAgendamento && (
-                            <button onClick={() => ui.openAgendar(selected.id)} className="btn-press inline-flex items-center gap-1.5 rounded-lg bg-pine-900 px-3.5 py-2 text-[13px] font-bold text-white hover:bg-pine-800">
-                              <IcCalendar size={14} /> Agendar
+                          {selected.active && (
+                            <button onClick={() => { setDetalheAba("agenda"); ui.openAgendar(selected.id); }} className="btn-press inline-flex items-center gap-1.5 rounded-lg bg-pine-900 px-3.5 py-2 text-[13px] font-bold text-white hover:bg-pine-800">
+                              <IcCalendar size={14} /> Novo agendamento
                             </button>
                           )}
                           {selected.phone && (
@@ -215,6 +215,7 @@ export function Clients() {
                   <div className="anim-rise flex gap-1 rounded-xl border border-line bg-paper p-1">
                     {([
                       { key: "resumo", label: "Resumo" },
+                      { key: "agenda", label: "Agenda" },
                       { key: "prontuario", label: "Prontuário" },
                     ] as { key: DetalheAba; label: string }[]).map((t) => (
                       <button
@@ -239,7 +240,10 @@ export function Clients() {
                         <div className="flex justify-between gap-3"><dt className="text-ink-faint">Fármaco principal</dt><dd className="text-right font-bold">{productName(state.produtos, selected.productId)}</dd></div>
                         <div className="flex justify-between gap-3"><dt className="text-ink-faint">Valor por aplicação</dt><dd className="num text-right font-bold text-leaf-700">{brl(selectedFicha?.precoVenda ?? 0, 0)}</dd></div>
                         <div className="flex justify-between gap-3"><dt className="text-ink-faint">Intervalo</dt><dd className="text-right font-bold">a cada {selected.frequencyDays} dias</dd></div>
-                        <div className="flex justify-between gap-3"><dt className="text-ink-faint">Última aplicação</dt><dd className="num text-right font-bold">{fmtShort(selected.lastApplication)}</dd></div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-ink-faint">Última aplicação <span className="rounded bg-leaf-100 px-1 py-0.5 text-[9.5px] font-bold text-leaf-700">automática</span></dt>
+                          <dd className="num text-right font-bold">{fmtShort(selected.lastApplication)}</dd>
+                        </div>
                         <div className="flex justify-between gap-3"><dt className="text-ink-faint">Próxima pelo intervalo</dt><dd className="num text-right font-bold">{fmtShort(nextDate(selected))}</dd></div>
                       </dl>
                       {protocolosDoCliente.length > 0 && (
@@ -294,6 +298,8 @@ export function Clients() {
                     )}
                   </div>
                     </>
+                  ) : detalheAba === "agenda" ? (
+                    <AgendaDoPaciente cliente={selected} />
                   ) : (
                     <Prontuario cliente={selected} />
                   )}
@@ -303,6 +309,156 @@ export function Clients() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ---------- Aba Agenda do paciente ---------- */
+function AgendaDoPaciente({ cliente }: { cliente: Client }) {
+  const { state, cancelarAlocacao } = useStore();
+  const ui = useUi();
+  const { push } = useToast();
+  const hoje = todayISO();
+
+  const alocs = state.alocacoes
+    .filter((a) => a.idCliente === cliente.id)
+    .sort((a, b) => a.dataPrevista.localeCompare(b.dataPrevista));
+
+  const protocolos = state.protocolos.filter((p) => p.idCliente === cliente.id);
+  const doses = protocolos.flatMap((p) => p.doses);
+  const aplicadas = doses.filter((d) => d.status === "APLICADA").length;
+  const pendentesAgendadas = alocs.filter((a) => diffDays(hoje, a.dataPrevista) >= 0).length;
+  const faltantes = doses.length > 0 ? doses.length - aplicadas : pendentesAgendadas;
+
+  const realizadas = state.transactions
+    .filter((t) => t.clientId === cliente.id && t.type === "receita" && t.category === "Aplicação")
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const pedirExclusao = (id: string, prevista: string) =>
+    ui.confirm({
+      title: "Excluir agendamento",
+      message: (
+        <>
+          Remover a aplicação agendada para <strong className="text-ink">{fmtMed(prevista)}</strong>? A alocação de estoque será liberada.
+        </>
+      ),
+      confirmLabel: "Excluir",
+      danger: true,
+      action: () => {
+        cancelarAlocacao(id);
+        push("info", "Agendamento excluído.");
+      },
+    });
+
+  return (
+    <div className="space-y-5">
+      {/* agendamentos */}
+      <div className="anim-rise card overflow-hidden">
+        <div className="flex items-center justify-between border-b border-line-soft px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <IcCalendar size={16} className="text-leaf-700" />
+            <h3 className="font-display text-[15px] font-bold tracking-tight">Aplicações agendadas</h3>
+            <Badge tone="neutral">{alocs.length}</Badge>
+          </div>
+          <button
+            onClick={() => ui.openAgendar(cliente.id)}
+            className="btn-press inline-flex items-center gap-1.5 rounded-lg bg-leaf-600 px-3 py-2 text-[12.5px] font-bold text-white hover:bg-leaf-700"
+          >
+            <IcPlus size={13} /> Novo agendamento
+          </button>
+        </div>
+        {alocs.length === 0 ? (
+          <p className="px-5 py-6 text-center text-[13px] text-ink-faint">Nenhuma aplicação agendada. Use “Novo agendamento” para criar a primeira.</p>
+        ) : (
+          <ul>
+            {alocs.map((a) => {
+              const d = diffDays(hoje, a.dataPrevista);
+              const ficha = state.fichas.find((f) => f.id === a.idFicha);
+              return (
+                <li key={a.id} className="flex items-center gap-3 border-b border-line-soft px-5 py-3 transition-colors last:border-0 hover:bg-leaf-50/50">
+                  <span className={`num w-12 shrink-0 rounded-lg px-1.5 py-2 text-center text-[11px] font-bold ${d < 0 ? "bg-coral-50 text-coral-700" : d === 0 ? "bg-leaf-100 text-leaf-700" : "bg-mist text-ink-soft"}`}>
+                    {fmtShort(a.dataPrevista)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-bold">{ficha?.nome ?? "Aplicação"}</p>
+                    {d < 0 ? (
+                      <Badge tone="coral">atrasada {-d}d</Badge>
+                    ) : d === 0 ? (
+                      <Badge tone="leaf">hoje</Badge>
+                    ) : (
+                      <Badge tone="neutral">em {d}d</Badge>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => ui.openAgendar(cliente.id, a.id)}
+                    className="btn-press inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] font-bold text-ink-soft hover:border-leaf-200 hover:text-leaf-700"
+                  >
+                    <IcPencil size={12} /> Editar
+                  </button>
+                  <button
+                    onClick={() => pedirExclusao(a.id, a.dataPrevista)}
+                    className="btn-press rounded-lg p-2 text-ink-faint hover:bg-coral-50 hover:text-coral-600"
+                    aria-label="Excluir agendamento"
+                  >
+                    <IcTrash size={14} />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* progresso / quantas faltam */}
+      <div className="anim-rise card p-5" style={{ animationDelay: "60ms" }}>
+        <div className="flex items-center justify-between">
+          <h3 className="eyebrow">Progresso do tratamento</h3>
+          <Badge tone={faltantes > 0 ? "amber" : "leaf"}>{faltantes > 0 ? `faltam ${faltantes}` : "concluído"}</Badge>
+        </div>
+        {doses.length > 0 ? (
+          <>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-mist">
+              <div
+                className="h-full rounded-full bg-leaf-500 transition-[width] duration-700 ease-out"
+                style={{ width: `${doses.length ? (aplicadas / doses.length) * 100 : 0}%` }}
+              />
+            </div>
+            <p className="num mt-2 text-[12px] font-semibold text-ink-soft">
+              {aplicadas} de {doses.length} doses aplicadas
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-[12.5px] text-ink-faint">
+            {pendentesAgendadas > 0
+              ? `${pendentesAgendadas} aplicação(ões) pendente(s) de agendamento confirmado.`
+              : "Sem protocolo de doses — os agendamentos avulsos aparecem acima."}
+          </p>
+        )}
+      </div>
+
+      {/* aplicações realizadas */}
+      <div className="anim-rise card overflow-hidden" style={{ animationDelay: "120ms" }}>
+        <div className="flex items-center justify-between border-b border-line-soft px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <IcCheck size={16} className="text-leaf-700" />
+            <h3 className="font-display text-[15px] font-bold tracking-tight">Aplicações realizadas</h3>
+            <Badge tone="neutral">{realizadas.length}</Badge>
+          </div>
+        </div>
+        {realizadas.length === 0 ? (
+          <p className="px-5 py-6 text-center text-[13px] text-ink-faint">Nenhuma aplicação realizada para este paciente ainda.</p>
+        ) : (
+          <ul>
+            {realizadas.map((t) => (
+              <li key={t.id} className="flex items-center gap-3 border-b border-line-soft px-5 py-2.5 transition-colors last:border-0 hover:bg-leaf-50/50">
+                <span className="num w-12 shrink-0 rounded-lg bg-mist px-1.5 py-2 text-center text-[11px] font-bold text-ink-soft">{fmtShort(t.date)}</span>
+                <span className="flex-1 truncate text-[13px] font-semibold">{t.description}</span>
+                <span className="num text-[13px] font-bold text-leaf-700">+{brl(t.amount, 0)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

@@ -17,7 +17,7 @@ interface UiApi {
   openTransaction(tx?: TxEdit): void;
   openApplication(clientId?: string, idAlocacao?: string): void;
   openClientModal(c?: Client): void;
-  openAgendar(clientId: string): void;
+  openAgendar(clientId: string, alocId?: string): void;
   openQuarentena(idLote: string): void;
   openDescarte(idLote: string): void;
   openReconstituir(idLote: string): void;
@@ -37,7 +37,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const [tx, setTx] = useState<TxEdit | null>(null);
   const [app, setApp] = useState<{ open: boolean; clientId?: string; idAlocacao?: string }>({ open: false });
   const [client, setClient] = useState<Client | "new" | null>(null);
-  const [agendar, setAgendar] = useState<string | null>(null);
+  const [agendar, setAgendar] = useState<{ clienteId: string; alocId?: string } | null>(null);
   const [quar, setQuar] = useState<string | null>(null);
   const [desc, setDesc] = useState<string | null>(null);
   const [reconst, setReconst] = useState<string | null>(null);
@@ -52,7 +52,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
     openTransaction: (t) => setTx(t ?? ({ type: "receita" } as TxEdit)),
     openApplication: (clientId, idAlocacao) => setApp({ open: true, clientId, idAlocacao }),
     openClientModal: (c) => setClient(c ?? "new"),
-    openAgendar: setAgendar,
+    openAgendar: (clienteId, alocId) => setAgendar({ clienteId, alocId }),
     openQuarentena: setQuar,
     openDescarte: setDesc,
     openReconstituir: setReconst,
@@ -77,7 +77,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
       <TransactionModal tx={tx} onClose={() => setTx(null)} />
       <ApplicationModal open={app.open} clientId={app.clientId} idAlocacao={app.idAlocacao} onClose={() => setApp({ open: false })} />
       <ClientModal client={client} onClose={() => setClient(null)} />
-      <AgendarModal clientId={agendar} onClose={() => setAgendar(null)} />
+      <AgendarModal alvo={agendar} onClose={() => setAgendar(null)} />
       <QuarentenaModal idLote={quar} onClose={() => setQuar(null)} />
       <ReconstituirModal idLote={reconst} onClose={() => setReconst(null)} />
       <AjusteModal idLote={ajuste} onClose={() => setAjuste(null)} />
@@ -376,31 +376,47 @@ function ClientModal({ client, onClose }: { client: Client | "new" | null; onClo
   );
 }
 
-/* ---------- Agendar ---------- */
-function AgendarModal({ clientId, onClose }: { clientId: string | null; onClose: () => void }) {
-  const { state, agendarAplicacao } = useStore();
+/* ---------- Agendar (criar ou editar data) ---------- */
+function AgendarModal({ alvo, onClose }: { alvo: { clienteId: string; alocId?: string } | null; onClose: () => void }) {
+  const { state, agendarAplicacao, editarAlocacao } = useStore();
   const { push } = useToast();
-  const c = state.clients.find((x) => x.id === clientId);
-  const [data, setData] = useState("");
-  if (clientId && !data) setData(nextDate(c ?? { ...({} as Client), lastApplication: todayISO(), frequencyDays: 7 }));
+  const c = state.clients.find((x) => x.id === alvo?.clienteId);
+  const aloc = alvo?.alocId ? state.alocacoes.find((a) => a.id === alvo.alocId) : undefined;
+  const editando = !!aloc;
+  const [prevista, setPrevista] = useState("");
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
+  const chave = alvo ? `${alvo.clienteId}|${alvo.alocId ?? ""}` : null;
+  if (alvo && loadedFor !== chave) {
+    setPrevista(aloc?.dataPrevista ?? nextDate(c ?? { ...({} as Client), lastApplication: todayISO(), frequencyDays: 7 }));
+    setLoadedFor(chave);
+  }
+  if (!alvo && loadedFor !== null) setLoadedFor(null);
+
+  const fechar = () => {
+    setPrevista("");
+    setLoadedFor(null);
+    onClose();
+  };
 
   const salvar = () => {
-    if (!clientId) return;
-    const r = agendarAplicacao(clientId, data);
+    if (!alvo) return;
+    const r = editando
+      ? editarAlocacao(aloc!.id, prevista)
+      : agendarAplicacao(alvo.clienteId, prevista);
     if (r.ok) {
-      push("success", "Aplicação agendada — entra na fila do dia e aloca estoque virtual.");
-      setData("");
-      onClose();
+      push("success", editando ? "Data do agendamento atualizada." : "Aplicação agendada — entra na fila do dia e aloca estoque virtual.");
+      fechar();
     } else push("error", r.error);
   };
 
   return (
-    <Modal open={!!clientId} onClose={() => { setData(""); onClose(); }} title="Agendar aplicação" subtitle={c?.name}>
+    <Modal open={!!alvo} onClose={fechar} title={editando ? "Editar agendamento" : "Novo agendamento"} subtitle={c?.name}>
       <div className="space-y-3">
-        <Field label="Data prevista">
-          <input className="field-input num" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+        <Field label="Data prevista" hint={editando ? "Altere a data desta aplicação agendada." : "Você pode criar vários agendamentos para o mesmo paciente."}>
+          <input className="field-input num" type="date" value={prevista} onChange={(e) => setPrevista(e.target.value)} />
         </Field>
-        <button onClick={salvar} className="btn-big"><IcCheck size={18} /> Agendar</button>
+        <button onClick={salvar} className="btn-big"><IcCheck size={18} /> {editando ? "Salvar alteração" : "Agendar"}</button>
       </div>
     </Modal>
   );

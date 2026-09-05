@@ -153,8 +153,11 @@ export interface StoreApi {
   ajustar(idLote: string, campo: "saldoFechado" | "saldoEmUso", novoSaldo: number, tipo: "AJUSTE" | "PERDA", motivo: string): Result;
   salvarFicha(f: { id?: string; nome: string; tipo: string; precoVenda: number; ativo: boolean; itens: ItemFichaTecnica[] }): void;
   agendarAplicacao(idCliente: string, data: string): Result;
+  editarAlocacao(id: string, novaData: string): Result;
   cancelarAlocacao(id: string): void;
   concluirAplicacao(args: ConcluirComData): Result;
+  excluirAnamnese(id: string): void;
+  excluirAvaliacao(id: string): void;
   saveEmployee(e: Employee): void;
   deleteEmployee(id: string): void;
   recordTermination(t: Termination): Result;
@@ -320,8 +323,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const c = state.clients.find((x) => x.id === idCliente);
         if (!c) return { ok: false, error: "Paciente não encontrado." };
         if (!c.fichaTecnicaId) return { ok: false, error: "Este paciente ainda não tem protocolo vinculado." };
-        if (state.alocacoes.some((a) => a.idCliente === idCliente))
-          return { ok: false, error: "Já existe um agendamento pendente para este paciente." };
+        if (state.alocacoes.some((a) => a.idCliente === idCliente && a.dataPrevista === data))
+          return { ok: false, error: "Já existe um agendamento nesta mesma data." };
         if (!data) return { ok: false, error: "Informe a data prevista." };
         setState((prev) => ({
           ...prev,
@@ -331,6 +334,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       cancelarAlocacao(id) {
         setState((prev) => ({ ...prev, alocacoes: prev.alocacoes.filter((a) => a.id !== id) }));
+      },
+      editarAlocacao(id, novaData) {
+        if (!novaData) return { ok: false, error: "Informe a nova data prevista." };
+        setState((prev) => ({
+          ...prev,
+          alocacoes: prev.alocacoes.map((a) => (a.id === id ? { ...a, dataPrevista: novaData } : a)),
+        }));
+        return { ok: true };
+      },
+      excluirAnamnese(id) {
+        setState((prev) => ({ ...prev, anamneses: prev.anamneses.filter((a) => a.id !== id) }));
+      },
+      excluirAvaliacao(id) {
+        setState((prev) => ({ ...prev, avaliacoesFisicas: prev.avaliacoesFisicas.filter((a) => a.id !== id) }));
       },
       concluirAplicacao(args) {
         try {
