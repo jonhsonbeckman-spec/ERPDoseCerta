@@ -4,7 +4,8 @@
    acontecem somente na aplicação (entrega do serviço).
    ============================================================ */
 import type { AppState, QuoteLabor, QuoteMaterial } from "../../types";
-import { round2, todayISO, uid } from "../utils";
+import { todayISO, uid } from "../utils";
+import { round2 } from "./engine";
 
 export interface QuotePricing {
   materialsCost: number;
