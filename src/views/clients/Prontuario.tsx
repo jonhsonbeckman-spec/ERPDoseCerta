@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import type { Anamnese, Client } from "../../types";
 import { useStore } from "../../lib/store";
+import { useUi } from "../../components/modals";
 import { Badge, Field, useToast } from "../../components/ui";
-import { IcAlert, IcCheck, IcClipboard, IcFlask, IcShieldAlert, IcSyringe } from "../../components/icons";
+import { IcAlert, IcCheck, IcClipboard, IcFlask, IcPencil, IcShieldAlert, IcSyringe, IcTrash } from "../../components/icons";
 import { fmtMed, fmtShort, todayISO, uid } from "../../lib/utils";
 import { Tcle } from "./Tcle";
 import { RegistroAplicacao, Timeline } from "./RegistroAplicacao";
@@ -129,10 +130,89 @@ function CheckGroup({ options, value, onChange }: { options: string[]; value: st
   );
 }
 
+/* ---------- Resumo da anamnese (modo leitura) ---------- */
+function AnamneseResumo({ a, alertas, onEditar, onExcluir }: { a: Anamnese; alertas: boolean; onEditar: () => void; onExcluir: () => void }) {
+  const gastroAtivos = [
+    a.historicoGastrointestinal.refluxo && "Refluxo",
+    a.historicoGastrointestinal.nauseaFrequente && "Náusea frequente",
+    a.historicoGastrointestinal.cirurgiaBariatrica && "Cirurgia bariátrica",
+    a.historicoGastrointestinal.constipacao && "Constipação",
+    a.historicoGastrointestinal.outra || null,
+  ].filter(Boolean) as string[];
+
+  const Linha = ({ rotulo, children }: { rotulo: string; children: React.ReactNode }) => (
+    <div className="flex flex-wrap items-start justify-between gap-2 py-2.5">
+      <span className="eyebrow mt-0.5 shrink-0">{rotulo}</span>
+      <span className="min-w-0 flex-1 text-right text-[13px] font-semibold text-ink">{children}</span>
+    </div>
+  );
+  const SimNao = ({ v, danger }: { v: boolean; danger?: boolean }) =>
+    v ? <Badge tone={danger ? "coral" : "amber"}>sim</Badge> : <Badge tone="leaf">não</Badge>;
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center justify-between border-b border-line-soft px-4 py-3 sm:px-5">
+        <div>
+          <h3 className="font-display text-[16px] font-bold tracking-tight">Anamnese para injetáveis</h3>
+          <p className="text-[11.5px] text-ink-faint">Registrada em {fmtMed(a.createdAt)} · revise antes de gerar o termo</p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button onClick={onEditar} className="btn-press inline-flex items-center gap-1.5 rounded-xl border border-line px-3.5 py-2 text-[12.5px] font-bold text-ink-soft hover:border-leaf-200 hover:text-leaf-700">
+            <IcPencil size={13} /> Editar
+          </button>
+          <button onClick={onExcluir} className="btn-press inline-flex items-center gap-1.5 rounded-xl border border-coral-100 bg-coral-50 px-3.5 py-2 text-[12.5px] font-bold text-coral-600 hover:bg-coral-100">
+            <IcTrash size={13} /> Excluir
+          </button>
+        </div>
+      </div>
+
+      {alertas && (
+        <div className="mx-4 mt-4 flex items-center gap-2 rounded-xl border border-coral-100 bg-coral-50 px-3.5 py-2.5 sm:mx-5">
+          <IcAlert size={15} className="shrink-0 text-coral-600" />
+          <p className="text-[12px] font-semibold text-coral-700">Há respostas que contraindicam ou exigem cautela com GLP-1. Confira antes de aplicar.</p>
+        </div>
+      )}
+
+      <div className="divide-y divide-line-soft px-4 sm:px-5">
+        <Linha rotulo="Alergias">
+          {a.alergias.length > 0 || a.alergiasOutras ? (
+            <span className="flex flex-wrap justify-end gap-1.5">
+              {a.alergias.map((x) => <Badge key={x} tone="coral">{x}</Badge>)}
+              {a.alergiasOutras && <Badge tone="coral">{a.alergiasOutras}</Badge>}
+            </span>
+          ) : (
+            <span className="text-ink-faint">Nenhuma informada</span>
+          )}
+        </Linha>
+        <Linha rotulo="Condições metabólicas">
+          {a.condicoesMetabolicas.length > 0 ? (
+            <span className="flex flex-wrap justify-end gap-1.5">{a.condicoesMetabolicas.map((x) => <Badge key={x} tone="amber">{x}</Badge>)}</span>
+          ) : (
+            <span className="text-ink-faint">Nenhuma</span>
+          )}
+        </Linha>
+        <Linha rotulo="Pancreatite"><SimNao v={a.pancreatite} danger /></Linha>
+        <Linha rotulo="Gastroparesia"><SimNao v={a.gastroparesia} danger /></Linha>
+        <Linha rotulo="Doença tireoidiana / CMT"><SimNao v={a.historicoTireoide} danger /></Linha>
+        <Linha rotulo="Histórico gastrointestinal">
+          {gastroAtivos.length > 0 ? gastroAtivos.join(" · ") : <span className="text-ink-faint">Nada a relatar</span>}
+        </Linha>
+        <Linha rotulo="Medicamentos em uso">
+          {a.medicamentosEmUso ? <span className="whitespace-pre-line">{a.medicamentosEmUso}</span> : <span className="text-ink-faint">Nenhum</span>}
+        </Linha>
+        <Linha rotulo="Gestante / lactante"><SimNao v={a.gestanteLactante} danger /></Linha>
+        {a.outrasCondicoes && <Linha rotulo="Outras condições"><span className="whitespace-pre-line">{a.outrasCondicoes}</span></Linha>}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Anamnese ---------- */
 function AnamneseForm({ cliente, existente }: { cliente: Client; existente?: Anamnese }) {
-  const { salvarAnamnese } = useStore();
+  const { salvarAnamnese, excluirAnamnese } = useStore();
+  const ui = useUi();
   const { push } = useToast();
+  const [editando, setEditando] = useState(!existente);
 
   const [alergias, setAlergias] = useState<string[]>(existente?.alergias ?? []);
   const [alergiasOutras, setAlergiasOutras] = useState(existente?.alergiasOutras ?? "");
@@ -159,18 +239,41 @@ function AnamneseForm({ cliente, existente }: { cliente: Client; existente?: Ana
 
   const alerta = pancreatite || gastroparesia || tireoide || gestante;
 
+  /* modo leitura: resumo com Editar / Excluir antes de gerar o termo */
+  if (existente && !editando) {
+    const pedirExclusao = () =>
+      ui.confirm({
+        title: "Excluir anamnese",
+        message: <>Excluir a anamnese de <strong className="text-ink">{cliente.name}</strong>? O registro será removido do prontuário.</>,
+        confirmLabel: "Excluir",
+        danger: true,
+        action: () => {
+          excluirAnamnese(existente.id);
+          push("success", "Anamnese excluída.");
+        },
+      });
+    return <AnamneseResumo a={existente} alertas={alerta} onEditar={() => setEditando(true)} onExcluir={pedirExclusao} />;
+  }
+
   return (
     <div className="card space-y-5 p-4 sm:p-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <h3 className="font-display text-[16px] font-bold tracking-tight">Anamnese para injetáveis</h3>
           <p className="text-[11.5px] text-ink-faint">
-            {existente ? <>Atualizada em {fmtMed(existente.createdAt)}</> : "Ainda não preenchida"}
+            {existente ? <>Editando — registrada em {fmtMed(existente.createdAt)}</> : "Ainda não preenchida"}
           </p>
         </div>
-        <button onClick={salvar} className="btn-press inline-flex items-center gap-1.5 rounded-xl bg-leaf-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-leaf-700">
-          <IcCheck size={15} /> Salvar anamnese
-        </button>
+        <div className="flex shrink-0 gap-2">
+          {existente && (
+            <button onClick={() => setEditando(false)} className="btn-press rounded-xl border border-line px-3.5 py-2.5 text-[13px] font-bold text-ink-soft hover:text-ink">
+              Cancelar
+            </button>
+          )}
+          <button onClick={salvar} className="btn-press inline-flex items-center gap-1.5 rounded-xl bg-leaf-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-leaf-700">
+            <IcCheck size={15} /> {existente ? "Salvar alterações" : "Salvar anamnese"}
+          </button>
+        </div>
       </div>
 
       {alerta && (
@@ -244,8 +347,21 @@ function AnamneseForm({ cliente, existente }: { cliente: Client; existente?: Ana
 
 /* ---------- Avaliação física ---------- */
 function AvaliacaoFisica({ cliente }: { cliente: Client }) {
-  const { state, addAvaliacao } = useStore();
+  const { state, addAvaliacao, excluirAvaliacao } = useStore();
+  const ui = useUi();
   const { push } = useToast();
+
+  const pedirExclusaoAvaliacao = (id: string, quando: string) =>
+    ui.confirm({
+      title: "Excluir avaliação física",
+      message: <>Remover a avaliação de <strong className="text-ink">{fmtMed(quando)}</strong> do histórico antropométrico?</>,
+      confirmLabel: "Excluir",
+      danger: true,
+      action: () => {
+        excluirAvaliacao(id);
+        push("success", "Avaliação excluída.");
+      },
+    });
 
   const avaliacoes = useMemo(
     () => state.avaliacoesFisicas.filter((a) => a.pacienteId === cliente.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
@@ -335,6 +451,14 @@ function AvaliacaoFisica({ cliente }: { cliente: Client }) {
                   <Badge tone={c.tone}>{c.label}</Badge>
                   {a.circAbdominalCm != null && <span className="num text-ink-soft">abd {a.circAbdominalCm} cm</span>}
                   {a.pregaCutaneaMm != null && <span className="num text-ink-soft">prega {a.pregaCutaneaMm} mm</span>}
+                  <button
+                    onClick={() => pedirExclusaoAvaliacao(a.id, a.createdAt)}
+                    className="btn-press ml-auto rounded-lg p-1.5 text-ink-faint hover:bg-coral-50 hover:text-coral-600"
+                    aria-label="Excluir avaliação"
+                    title="Excluir avaliação"
+                  >
+                    <IcTrash size={13} />
+                  </button>
                 </li>
               );
             })}

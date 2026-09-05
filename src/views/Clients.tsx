@@ -3,7 +3,7 @@ import type { Client } from "../types";
 import { useStore } from "../lib/store";
 import { useUi } from "../components/modals";
 import { Avatar, Badge, EmptyState, Segmented, StatusBadge, useToast } from "../components/ui";
-import { IcCalendar, IcChevronL, IcClipboard, IcPencil, IcPlus, IcSearch, IcSyringe, IcTrash, IcUsers, IcWhats } from "../components/icons";
+import { IcCalendar, IcCheck, IcChevronL, IcClipboard, IcPencil, IcPlus, IcSearch, IcSyringe, IcTrash, IcUsers, IcWhats } from "../components/icons";
 import { brl, diffDays, dueStatus, fmtCPF, fmtMed, fmtShort, nextDate, productName, todayISO, waLink } from "../lib/utils";
 import { Protocolos } from "./clients/Protocolos";
 import { Prontuario } from "./clients/Prontuario";
