@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from "./components/AuthProvider";
 import { Login } from "./views/Login";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
-import { InstallModal } from "./components/InstallModal";
 import { Dashboard } from "./views/Dashboard";
 import { Finance } from "./views/Finance";
 import { Estoque } from "./views/stock/Estoque";
@@ -16,7 +15,7 @@ import { Relatorios } from "./views/stock/Relatorios";
 import { RH } from "./views/rh/RH";
 import { Orcamentos } from "./views/orcamentos/Orcamentos";
 import { Clients } from "./views/Clients";
-import { IcCalendar, IcDownload, IcLogOut, IcPlus, IcSyringe } from "./components/icons";
+import { IcCalendar, IcLogOut, IcPlus, IcSyringe } from "./components/icons";
 import { alertasLotes } from "./lib/domain/analytics";
 import { diffDays, fmtLong, todayISO } from "./lib/utils";
 import { useMemo } from "react";
@@ -37,7 +36,6 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
   const ui = useUi();
   const { user, signOut } = useAuth();
   const hoje = todayISO();
-  const [install, setInstall] = useState(false);
 
   const dueCount = state.alocacoes.filter((a) => diffDays(hoje, a.dataPrevista) <= 0).length;
   const alertCount = useMemo(() => alertasLotes(state).length, [state]);
@@ -72,11 +70,6 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
             <span className="num">{dueCount}</span>
             <span className="hidden sm:inline">hoje</span>
           </button>
-          <button onClick={() => setInstall(true)} title="Instalar no celular e no PC"
-            className="btn-press inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] font-bold text-ink-soft hover:border-leaf-200 hover:text-leaf-700">
-            <IcDownload size={13} />
-            <span className="hidden sm:inline">Instalar</span>
-          </button>
           {user && (
             <button
               onClick={signOut}
@@ -93,7 +86,6 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
           </button>
         </div>
       </div>
-      <InstallModal open={install} onClose={() => setInstall(false)} />
     </div>
   );
 }
