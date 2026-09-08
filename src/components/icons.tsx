@@ -54,3 +54,4 @@ export const IcShare = make(<><path d="M12 3v12M8 6.5 12 3l4 3.5" /><path d="M8 
 export const IcSmartphone = make(<><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M10.5 18.5h3" /></>, "IcSmartphone");
 export const IcMonitor = make(<><rect x="3" y="4" width="18" height="12.5" rx="2" /><path d="M9 20.5h6M12 16.5v4" /></>, "IcMonitor");
 export const IcCopy = make(<><rect x="8.5" y="8.5" width="12" height="12" rx="2.5" /><path d="M5.5 15.5h-1a1.5 1.5 0 0 1-1.5-1.5V5a2 2 0 0 1 2-2h9a1.5 1.5 0 0 1 1.5 1.5v1" /></>, "IcCopy");
+export const IcLogOut = make(<><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4" /><path d="M15.5 16.5 20 12l-4.5-4.5" /><path d="M20 12H9" /></>, "IcLogOut");

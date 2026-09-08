@@ -1,12 +1,13 @@
 import { useMemo } from "react";
 import type { ViewKey } from "../types";
 import { useStore } from "../lib/store";
+import { useAuth } from "./AuthProvider";
 import { MEI_CAP, brl, brlK, diffDays, todayISO, yearRevenue } from "../lib/utils";
 import { alertasLotes } from "../lib/domain/analytics";
 import { useUi } from "./modals";
 import { useToast } from "./ui";
 import {
-  IcBox, IcCoins, IcFileText, IcGrid, IcIdCard, IcRefresh, IcSyringe, IcTruck, IcUsers, IcWallet,
+  IcBox, IcCoins, IcFileText, IcGrid, IcIdCard, IcLogOut, IcRefresh, IcSyringe, IcTruck, IcUsers, IcWallet,
 } from "./icons";
 
 const NAV: { key: ViewKey; label: string; icon: typeof IcGrid }[] = [
@@ -24,6 +25,7 @@ export function Sidebar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void 
   const { state, resetData } = useStore();
   const ui = useUi();
   const { push } = useToast();
+  const { user, signOut } = useAuth();
 
   const hoje = todayISO();
   const dueCount = state.alocacoes.filter((a) => diffDays(hoje, a.dataPrevista) <= 0).length;
@@ -86,6 +88,15 @@ export function Sidebar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void 
             <div className="h-full rounded-full bg-lime-400 transition-[width] duration-1000 ease-out" style={{ width: `${pct}%` }} />
           </div>
         </div>
+
+        {user && (
+          <div className="rounded-xl border border-pine-700 bg-pine-800/70 px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">Conectado como</p>
+            <p className="mt-1 truncate text-[12px] font-semibold text-white">{user.name}</p>
+            <p className="truncate text-[10.5px] text-white/50">{user.email}</p>
+          </div>
+        )}
+
         <button
           onClick={() =>
             ui.confirm({
@@ -98,6 +109,15 @@ export function Sidebar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void 
           className="btn-press flex w-full items-center justify-center gap-2 rounded-lg border border-pine-700 px-3 py-2 text-[12px] font-semibold text-white/45 transition-colors hover:border-pine-600 hover:text-white/80">
           <IcRefresh size={13} /> Restaurar exemplo
         </button>
+
+        {user && (
+          <button
+            onClick={signOut}
+            className="btn-press flex w-full items-center justify-center gap-2 rounded-lg border border-coral-700/40 bg-coral-950/40 px-3 py-2 text-[12px] font-semibold text-coral-100 transition-colors hover:border-coral-600 hover:bg-coral-950/60"
+          >
+            <IcLogOut size={13} /> Sair
+          </button>
+        )}
       </div>
     </aside>
   );

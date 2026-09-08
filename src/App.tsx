@@ -3,6 +3,8 @@ import type { ViewKey } from "./types";
 import { StoreProvider, useStore } from "./lib/store";
 import { ToastProvider } from "./components/ui";
 import { UiProvider, useUi } from "./components/modals";
+import { AuthProvider, useAuth } from "./components/AuthProvider";
+import { Login } from "./views/Login";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
 import { InstallModal } from "./components/InstallModal";
@@ -14,7 +16,7 @@ import { Relatorios } from "./views/stock/Relatorios";
 import { RH } from "./views/rh/RH";
 import { Orcamentos } from "./views/orcamentos/Orcamentos";
 import { Clients } from "./views/Clients";
-import { IcCalendar, IcDownload, IcPlus, IcSyringe } from "./components/icons";
+import { IcCalendar, IcDownload, IcLogOut, IcPlus, IcSyringe } from "./components/icons";
 import { alertasLotes } from "./lib/domain/analytics";
 import { diffDays, fmtLong, todayISO } from "./lib/utils";
 import { useMemo } from "react";
@@ -33,6 +35,7 @@ const META: Record<ViewKey, { title: string; sub: string }> = {
 function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
   const { state } = useStore();
   const ui = useUi();
+  const { user, signOut } = useAuth();
   const hoje = todayISO();
   const [install, setInstall] = useState(false);
 
@@ -74,6 +77,16 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
             <IcDownload size={13} />
             <span className="hidden sm:inline">Instalar</span>
           </button>
+          {user && (
+            <button
+              onClick={signOut}
+              title="Sair"
+              className="btn-press inline-flex items-center gap-1.5 rounded-lg border border-coral-100 bg-coral-50 px-3 py-1.5 text-[12px] font-bold text-coral-600 hover:bg-coral-100"
+            >
+              <IcLogOut size={13} />
+              <span className="hidden sm:inline">Sair</span>
+            </button>
+          )}
           <button onClick={() => ui.openTransaction()}
             className="btn-press hidden items-center gap-1.5 rounded-lg bg-leaf-600 px-3.5 py-1.5 text-[12.5px] font-bold text-white hover:bg-leaf-700 sm:inline-flex">
             <IcPlus size={13} /> Lançamento
@@ -172,16 +185,41 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
+function AuthenticatedApp() {
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="app-bg flex min-h-screen items-center justify-center">
+        <div className="anim-pop card p-8 text-center">
+          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-pine-900 text-lime-400">
+            <IcSyringe size={32} />
+          </div>
+          <p className="text-sm font-semibold text-ink-soft">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Login />;
+  }
+
+  return <Shell />;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
-      <StoreProvider>
-        <ToastProvider>
-          <UiProvider>
-            <Shell />
-          </UiProvider>
-        </ToastProvider>
-      </StoreProvider>
+      <AuthProvider>
+        <StoreProvider>
+          <ToastProvider>
+            <UiProvider>
+              <AuthenticatedApp />
+            </UiProvider>
+          </ToastProvider>
+        </StoreProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }
