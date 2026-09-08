@@ -1,12 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { auth, isSupabaseConfigured, type AuthSession, type AuthUser } from "../lib/supabase";
+import { auth, type AuthSession, type AuthUser } from "../lib/supabase";
 
 interface AuthContextValue {
   session: AuthSession | null;
   loading: boolean;
-  isDemo: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string, name: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   user: AuthUser | null;
 }
@@ -37,11 +35,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
-    const { error } = await auth.signUp(email, password, name);
-    return { error };
-  };
-
   const signOut = async () => {
     await auth.signOut();
   };
@@ -51,9 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         session,
         loading,
-        isDemo: !isSupabaseConfigured,
         signIn,
-        signUp,
         signOut,
         user: session?.user ?? null,
       }}

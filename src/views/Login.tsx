@@ -3,11 +3,9 @@ import { useAuth } from "../components/AuthProvider";
 import { IcSyringe, IcCheck, IcAlert } from "../components/icons";
 
 export function Login() {
-  const { signIn, signUp, isDemo } = useAuth();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -17,28 +15,13 @@ export function Login() {
     setLoading(true);
 
     try {
-      if (mode === "login") {
-        const { error } = await signIn(email, password);
-        if (error) setError(error);
-      } else {
-        if (!name.trim()) {
-          setError("Informe seu nome.");
-          setLoading(false);
-          return;
-        }
-        const { error } = await signUp(email, password, name);
-        if (error) setError(error);
-      }
+      const { error } = await signIn(email, password);
+      if (error) setError(error);
     } catch (err) {
       setError("Erro inesperado. Tente novamente.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillDemo = () => {
-    setEmail("demo@dosecerta.com");
-    setPassword("demo1234");
   };
 
   return (
@@ -50,56 +33,27 @@ export function Login() {
             <IcSyringe size={32} />
           </div>
           <h1 className="font-display text-3xl font-bold tracking-tight text-ink">DoseCerta</h1>
-          <p className="mt-1 text-sm text-ink-soft">
-            {isDemo ? "Modo demonstração · dados locais" : "Controle financeiro do MEI"}
-          </p>
+          <p className="mt-1 text-sm text-ink-soft">Sistema Corporativo de Controle Financeiro</p>
         </div>
 
         {/* Card de login */}
         <div className="card p-6">
-          <div className="mb-5 flex gap-1 rounded-xl bg-mist p-1">
-            <button
-              onClick={() => setMode("login")}
-              className={`btn-press flex-1 rounded-lg py-2 text-sm font-bold transition-colors ${
-                mode === "login" ? "bg-paper text-ink shadow-sm" : "text-ink-soft hover:text-ink"
-              }`}
-            >
-              Entrar
-            </button>
-            <button
-              onClick={() => setMode("signup")}
-              className={`btn-press flex-1 rounded-lg py-2 text-sm font-bold transition-colors ${
-                mode === "signup" ? "bg-paper text-ink shadow-sm" : "text-ink-soft hover:text-ink"
-              }`}
-            >
-              Cadastrar
-            </button>
+          <div className="mb-5">
+            <h2 className="text-center text-lg font-bold text-ink">Acesso Restrito</h2>
+            <p className="mt-1 text-center text-[12px] text-ink-faint">
+              Entre com suas credenciais corporativas
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <div>
-                <label className="eyebrow mb-1.5 block">Nome</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="field-input"
-                  placeholder="Seu nome completo"
-                  autoComplete="name"
-                  required
-                />
-              </div>
-            )}
-
             <div>
-              <label className="eyebrow mb-1.5 block">E-mail</label>
+              <label className="eyebrow mb-1.5 block">E-mail Corporativo</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="field-input"
-                placeholder="seu@email.com"
+                placeholder="seu.email@empresa.com"
                 autoComplete="email"
                 required
               />
@@ -113,9 +67,8 @@ export function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="field-input"
                 placeholder="••••••••"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                autoComplete="current-password"
                 required
-                minLength={6}
               />
             </div>
 
@@ -137,38 +90,29 @@ export function Login() {
                     <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
                     <path d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" fill="currentColor" className="opacity-90" />
                   </svg>
-                  {mode === "login" ? "Entrando..." : "Cadastrando..."}
+                  Entrando...
                 </span>
               ) : (
                 <>
                   <IcCheck size={18} />
-                  {mode === "login" ? "Entrar" : "Criar conta"}
+                  Entrar
                 </>
               )}
             </button>
           </form>
 
-          {isDemo && mode === "login" && (
-            <div className="mt-5 rounded-xl border border-leaf-200 bg-leaf-50 p-4">
-              <p className="mb-2 text-[12px] font-bold text-leaf-700">Modo demonstração</p>
-              <p className="mb-3 text-[11.5px] leading-snug text-ink-soft">
-                Use as credenciais abaixo para explorar o app sem configurar Supabase:
-              </p>
-              <button
-                onClick={fillDemo}
-                className="btn-press w-full rounded-lg border border-leaf-200 bg-paper px-3 py-2 text-[12px] font-bold text-leaf-700 hover:bg-leaf-100"
-              >
-                Preencher credenciais demo
-              </button>
-            </div>
-          )}
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="mb-2 text-[12px] font-bold text-amber-700">Acesso Corporativo</p>
+            <p className="text-[11.5px] leading-snug text-ink-soft">
+              Este sistema é restrito a usuários autorizados. Caso não tenha acesso, 
+              entre em contato com o administrador do sistema.
+            </p>
+          </div>
         </div>
 
         {/* Rodapé */}
         <p className="mt-6 text-center text-[11px] text-ink-faint">
-          {isDemo
-            ? "Dados salvos localmente no navegador. Configure Supabase para sincronização em nuvem."
-            : "Autenticação segura via Supabase Auth"}
+          Sistema protegido por autenticação segura · Dados criptografados
         </p>
       </div>
     </div>

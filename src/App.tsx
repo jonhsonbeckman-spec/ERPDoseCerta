@@ -4,10 +4,10 @@ import { StoreProvider, useStore } from "./lib/store";
 import { ToastProvider } from "./components/ui";
 import { UiProvider, useUi } from "./components/modals";
 import { AuthProvider, useAuth } from "./components/AuthProvider";
+import { isSupabaseConfigured } from "./lib/supabase";
 import { Login } from "./views/Login";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
-import { InstallModal } from "./components/InstallModal";
 import { Dashboard } from "./views/Dashboard";
 import { Finance } from "./views/Finance";
 import { Estoque } from "./views/stock/Estoque";
@@ -16,7 +16,9 @@ import { Relatorios } from "./views/stock/Relatorios";
 import { RH } from "./views/rh/RH";
 import { Orcamentos } from "./views/orcamentos/Orcamentos";
 import { Clients } from "./views/Clients";
-import { IcCalendar, IcDownload, IcLogOut, IcPlus, IcSyringe } from "./components/icons";
+import { UserManagement } from "./views/admin/UserManagement";
+import { AuditLogs } from "./views/admin/AuditLogs";
+import { IcAlert, IcCalendar, IcLogOut, IcSyringe } from "./components/icons";
 import { alertasLotes } from "./lib/domain/analytics";
 import { diffDays, fmtLong, todayISO } from "./lib/utils";
 import { useMemo } from "react";
@@ -30,6 +32,8 @@ const META: Record<ViewKey, { title: string; sub: string }> = {
   rh: { title: "RH & Custos", sub: "Custo real por pessoa · MOD × MOI" },
   orcamentos: { title: "Orçamentos", sub: "Precificação e aprovação que cria o paciente" },
   clients: { title: "Pacientes", sub: "Protocolos e orientações" },
+  "admin-users": { title: "Gestão de Usuários", sub: "Cadastro e permissões (Admin)" },
+  "audit-logs": { title: "Auditoria", sub: "Log de ações críticas (Admin)" },
 };
 
 function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
@@ -37,7 +41,6 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
   const ui = useUi();
   const { user, signOut } = useAuth();
   const hoje = todayISO();
-  const [install, setInstall] = useState(false);
 
   const dueCount = state.alocacoes.filter((a) => diffDays(hoje, a.dataPrevista) <= 0).length;
   const alertCount = useMemo(() => alertasLotes(state).length, [state]);
@@ -72,11 +75,6 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
             <span className="num">{dueCount}</span>
             <span className="hidden sm:inline">hoje</span>
           </button>
-          <button onClick={() => setInstall(true)} title="Instalar no celular e no PC"
-            className="btn-press inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] font-bold text-ink-soft hover:border-leaf-200 hover:text-leaf-700">
-            <IcDownload size={13} />
-            <span className="hidden sm:inline">Instalar</span>
-          </button>
           {user && (
             <button
               onClick={signOut}
@@ -87,13 +85,8 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
               <span className="hidden sm:inline">Sair</span>
             </button>
           )}
-          <button onClick={() => ui.openTransaction()}
-            className="btn-press hidden items-center gap-1.5 rounded-lg bg-leaf-600 px-3.5 py-1.5 text-[12.5px] font-bold text-white hover:bg-leaf-700 sm:inline-flex">
-            <IcPlus size={13} /> Lançamento
-          </button>
         </div>
       </div>
-      <InstallModal open={install} onClose={() => setInstall(false)} />
     </div>
   );
 }
@@ -115,6 +108,8 @@ function Shell() {
           {view === "rh" && <RH />}
           {view === "orcamentos" && <Orcamentos />}
           {view === "clients" && <Clients />}
+          {view === "admin-users" && <UserManagement />}
+          {view === "audit-logs" && <AuditLogs />}
         </main>
         <footer className="hidden border-t border-line py-5 text-center text-[11px] text-ink-faint lg:block">
           DoseCerta · estoque com rastreabilidade Lote + Validade + CPF · dados salvos neste navegador
@@ -187,6 +182,58 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 
 function AuthenticatedApp() {
   const { session, loading } = useAuth();
+  const isConfigured = isSupabaseConfigured;
+
+  if (!isConfigured) {
+    return (
+      <div className="app-bg flex min-h-screen items-center justify-center px-4 py-8">
+        <div className="anim-pop w-full max-w-md">
+          <div className="card p-8 text-center">
+            <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-amber-100 text-amber-700">
+              <IcAlert size={32} />
+            </div>
+            <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Configuração Necessária</h1>
+            <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+              O DoseCerta requer configuração do Supabase para funcionar.
+            </p>
+            <div className="mt-6 space-y-3 text-left">
+              <div className="rounded-xl border border-line bg-mist/50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Passo 1</p>
+                <p className="mt-1 text-sm font-semibold text-ink">Configure as variáveis de ambiente</p>
+                <p className="mt-1 text-xs text-ink-soft">
+                  Crie um arquivo <code className="rounded bg-paper px-1.5 py-0.5 font-mono text-[11px]">.env</code> na raiz do projeto com:
+                </p>
+                <pre className="mt-2 overflow-x-auto rounded-lg bg-pine-900 p-3 text-[11px] text-lime-400">
+{`VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-chave-anon`}
+                </pre>
+              </div>
+              <div className="rounded-xl border border-line bg-mist/50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Passo 2</p>
+                <p className="mt-1 text-sm font-semibold text-ink">Execute o schema SQL</p>
+                <p className="mt-1 text-xs text-ink-soft">
+                  Execute <code className="rounded bg-paper px-1.5 py-0.5 font-mono text-[11px]">supabase/schema.sql</code> no SQL Editor do Supabase
+                </p>
+              </div>
+              <div className="rounded-xl border border-line bg-mist/50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Passo 3</p>
+                <p className="mt-1 text-sm font-semibold text-ink">Crie o primeiro Admin</p>
+                <p className="mt-1 text-xs text-ink-soft">
+                  Execute <code className="rounded bg-paper px-1.5 py-0.5 font-mono text-[11px]">supabase/seed-admin.sql</code> após criar o usuário no Auth
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 rounded-xl border border-leaf-200 bg-leaf-50 p-4">
+              <p className="text-xs font-bold text-leaf-700">📚 Documentação Completa</p>
+              <p className="mt-1 text-xs text-ink-soft">
+                Consulte os arquivos <strong>README.md</strong> e <strong>SETUP.md</strong> para instruções detalhadas.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

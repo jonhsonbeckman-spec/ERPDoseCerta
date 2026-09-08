@@ -1,24 +1,47 @@
 /* ============================================================
-   Cliente Supabase + modo demo local
+   Cliente Supabase - Sistema Corporativo Restrito
    ============================================================
-   Se as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY
-   estiverem configuradas, usa Supabase Auth real.
-   Caso contrário, usa um modo demo local (email/senha salvos
-   em localStorage) para que o app continue funcionando em
-   pré-visualizações sem backend.
+   Sistema de autenticação restrito sem cadastro público.
+   Apenas usuários previamente cadastrados pelo Admin podem acessar.
    ============================================================ */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+export type UserRole = "admin" | "operator";
 
 export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  role: UserRole;
+  isActive: boolean;
 }
 
 export interface AuthSession {
   user: AuthUser;
   accessToken: string;
+}
+
+export interface SystemUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+  lastLogin: string | null;
+}
+
+export interface AuditLog {
+  id: string;
+  userId: string | null;
+  userEmail: string;
+  action: "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT";
+  entityType: string;
+  entityId: string | null;
+  oldData: any;
+  newData: any;
+  createdAt: string;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -40,55 +63,15 @@ if (isSupabaseConfigured) {
 
 export { supabaseClient };
 
-/* ---------- Modo demo local (fallback) ---------- */
-
-const DEMO_USERS_KEY = "dosecerta:demoUsers";
-const DEMO_SESSION_KEY = "dosecerta:demoSession";
-
-interface DemoUser {
-  id: string;
-  email: string;
-  password: string;
-  name: string;
-}
-
-function getDemoUsers(): DemoUser[] {
-  try {
-    const raw = localStorage.getItem(DEMO_USERS_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {
-    /* corrompido */
+/* Helper para verificar se o Supabase está configurado */
+function getClient(): SupabaseClient {
+  if (!supabaseClient) {
+    throw new Error("Supabase não configurado. Configure as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY");
   }
-  // Usuário demo padrão
-  const defaultUser: DemoUser = {
-    id: "demo-user-001",
-    email: "demo@dosecerta.com",
-    password: "demo1234",
-    name: "Usuário Demo",
-  };
-  localStorage.setItem(DEMO_USERS_KEY, JSON.stringify([defaultUser]));
-  return [defaultUser];
+  return supabaseClient;
 }
 
-function getDemoSession(): AuthSession | null {
-  try {
-    const raw = localStorage.getItem(DEMO_SESSION_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {
-    /* corrompido */
-  }
-  return null;
-}
-
-function setDemoSession(session: AuthSession | null) {
-  if (session) {
-    localStorage.setItem(DEMO_SESSION_KEY, JSON.stringify(session));
-  } else {
-    localStorage.removeItem(DEMO_SESSION_KEY);
-  }
-}
-
-/* ---------- API de autenticação unificada ---------- */
+/* ---------- API de autenticação corporativa ---------- */
 
 export type AuthChangeCallback = (session: AuthSession | null) => void;
 
@@ -98,115 +81,117 @@ function notifyAuthChange(session: AuthSession | null) {
   authChangeCallbacks.forEach((cb) => cb(session));
 }
 
+async function getUserProfile(userId: string): Promise<AuthUser | null> {
+  if (!supabaseClient) return null;
+  
+  const { data, error } = await supabaseClient
+    .from("users")
+    .select("id, email, name, role, is_active")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    email: data.email,
+    name: data.name,
+    role: data.role as UserRole,
+    isActive: data.is_active,
+  };
+}
+
 export const auth = {
-  /** Retorna a sessão atual (Supabase ou demo) */
+  /** Retorna a sessão atual com perfil do usuário */
   async getSession(): Promise<AuthSession | null> {
-    if (supabaseClient) {
-      const { data } = await supabaseClient.auth.getSession();
-      if (data.session?.user) {
-        return {
-          user: {
-            id: data.session.user.id,
-            email: data.session.user.email ?? "",
-            name: data.session.user.user_metadata?.name ?? data.session.user.email?.split("@")[0] ?? "Usuário",
-          },
-          accessToken: data.session.access_token,
-        };
-      }
+    if (!supabaseClient) return null;
+    
+    const { data } = await supabaseClient.auth.getSession();
+    if (!data.session?.user) return null;
+
+    const profile = await getUserProfile(data.session.user.id);
+    if (!profile || !profile.isActive) {
+      await supabaseClient.auth.signOut();
       return null;
     }
-    return getDemoSession();
+
+    return {
+      user: profile,
+      accessToken: data.session.access_token,
+    };
   },
 
-  /** Login com email e senha */
+  /** Login com email e senha (apenas usuários cadastrados pelo Admin) */
   async signIn(email: string, password: string): Promise<{ session: AuthSession | null; error?: string }> {
-    if (supabaseClient) {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error) return { session: null, error: error.message };
-      if (data.session?.user) {
-        const session: AuthSession = {
-          user: {
-            id: data.session.user.id,
-            email: data.session.user.email ?? "",
-            name: data.session.user.user_metadata?.name ?? data.session.user.email?.split("@")[0] ?? "Usuário",
-          },
-          accessToken: data.session.access_token,
-        };
-        notifyAuthChange(session);
-        return { session };
-      }
+    if (!supabaseClient) {
+      return { session: null, error: "Supabase não configurado. Configure as variáveis de ambiente." };
+    }
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    
+    if (error) {
+      return { session: null, error: "E-mail ou senha incorretos." };
+    }
+
+    if (!data.session?.user) {
       return { session: null, error: "Não foi possível fazer login." };
     }
 
-    // Modo demo
-    const users = getDemoUsers();
-    const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-    if (!user) {
-      return { session: null, error: "E-mail ou senha incorretos." };
-    }
-    const session: AuthSession = {
-      user: { id: user.id, email: user.email, name: user.name },
-      accessToken: "demo-token-" + Date.now(),
-    };
-    setDemoSession(session);
-    notifyAuthChange(session);
-    return { session };
-  },
-
-  /** Cadastro de novo usuário */
-  async signUp(email: string, password: string, name: string): Promise<{ session: AuthSession | null; error?: string }> {
-    if (supabaseClient) {
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: { data: { name } },
-      });
-      if (error) return { session: null, error: error.message };
-      if (data.session?.user) {
-        const session: AuthSession = {
-          user: {
-            id: data.session.user.id,
-            email: data.session.user.email ?? "",
-            name: data.session.user.user_metadata?.name ?? name,
-          },
-          accessToken: data.session.access_token,
-        };
-        notifyAuthChange(session);
-        return { session };
-      }
-      // Se o Supabase exigir confirmação de email, retorna sem sessão
-      return { session: null, error: "Verifique seu e-mail para confirmar o cadastro." };
-    }
-
-    // Modo demo
-    const users = getDemoUsers();
-    if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
-      return { session: null, error: "Este e-mail já está cadastrado." };
-    }
-    const newUser: DemoUser = {
-      id: "demo-user-" + Date.now(),
-      email,
-      password,
-      name,
-    };
-    users.push(newUser);
-    localStorage.setItem(DEMO_USERS_KEY, JSON.stringify(users));
-    const session: AuthSession = {
-      user: { id: newUser.id, email: newUser.email, name: newUser.name },
-      accessToken: "demo-token-" + Date.now(),
-    };
-    setDemoSession(session);
-    notifyAuthChange(session);
-    return { session };
-  },
-
-  /** Logout */
-  async signOut(): Promise<void> {
-    if (supabaseClient) {
+    const profile = await getUserProfile(data.session.user.id);
+    
+    if (!profile) {
       await supabaseClient.auth.signOut();
-    } else {
-      setDemoSession(null);
+      return { session: null, error: "Usuário não encontrado no sistema. Contate o administrador." };
     }
+
+    if (!profile.isActive) {
+      await supabaseClient.auth.signOut();
+      return { session: null, error: "Usuário desativado. Contate o administrador." };
+    }
+
+    // Atualiza último login
+    await supabaseClient
+      .from("users")
+      .update({ last_login: new Date().toISOString() })
+      .eq("id", profile.id);
+
+    // Registra log de auditoria
+    await supabaseClient.from("audit_logs").insert({
+      user_id: profile.id,
+      user_email: profile.email,
+      action: "LOGIN",
+      entity_type: "user",
+      entity_id: profile.id,
+      new_data: { action: "login" },
+    });
+
+    const session: AuthSession = {
+      user: profile,
+      accessToken: data.session.access_token,
+    };
+
+    notifyAuthChange(session);
+    return { session };
+  },
+
+  /** Logout com registro de auditoria */
+  async signOut(): Promise<void> {
+    if (!supabaseClient) return;
+
+    const session = await this.getSession();
+    
+    if (session) {
+      await supabaseClient.from("audit_logs").insert({
+        user_id: session.user.id,
+        user_email: session.user.email,
+        action: "LOGOUT",
+        entity_type: "user",
+        entity_id: session.user.id,
+        new_data: { action: "logout" },
+      });
+    }
+
+    await supabaseClient.auth.signOut();
     notifyAuthChange(null);
   },
 
@@ -214,30 +199,234 @@ export const auth = {
   onAuthStateChange(callback: AuthChangeCallback): () => void {
     authChangeCallbacks.push(callback);
 
-    if (supabaseClient) {
-      const { data: subscription } = supabaseClient.auth.onAuthStateChange(async (event, supabaseSession) => {
-        if (supabaseSession?.user) {
+    if (!supabaseClient) {
+      return () => {
+        authChangeCallbacks = authChangeCallbacks.filter((cb) => cb !== callback);
+      };
+    }
+
+    const { data } = supabaseClient.auth.onAuthStateChange(async (event, supabaseSession) => {
+      if (supabaseSession?.user) {
+        const profile = await getUserProfile(supabaseSession.user.id);
+        if (profile && profile.isActive) {
           const session: AuthSession = {
-            user: {
-              id: supabaseSession.user.id,
-              email: supabaseSession.user.email ?? "",
-              name: supabaseSession.user.user_metadata?.name ?? supabaseSession.user.email?.split("@")[0] ?? "Usuário",
-            },
+            user: profile,
             accessToken: supabaseSession.access_token,
           };
           callback(session);
         } else {
           callback(null);
         }
-      });
-      return () => {
-        authChangeCallbacks = authChangeCallbacks.filter((cb) => cb !== callback);
-        subscription?.subscription.unsubscribe();
-      };
-    }
+      } else {
+        callback(null);
+      }
+    });
 
     return () => {
       authChangeCallbacks = authChangeCallbacks.filter((cb) => cb !== callback);
+      data.subscription.unsubscribe();
     };
+  },
+
+  /* ---------- Gestão de Usuários (Admin Only) ---------- */
+
+  /** Lista todos os usuários (apenas admin) */
+  async listUsers(): Promise<{ users: SystemUser[]; error?: string }> {
+    if (!supabaseClient) return { users: [], error: "Supabase não configurado" };
+
+    const { data, error } = await supabaseClient
+      .from("users")
+      .select("id, email, name, role, is_active, created_at, last_login")
+      .order("created_at", { ascending: false });
+
+    if (error) return { users: [], error: error.message };
+
+    return {
+      users: data.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role as UserRole,
+        isActive: u.is_active,
+        createdAt: u.created_at,
+        lastLogin: u.last_login,
+      })),
+    };
+  },
+
+  /** Cria novo usuário (apenas admin) */
+  async createUser(
+    email: string,
+    password: string,
+    name: string,
+    role: UserRole
+  ): Promise<{ user: SystemUser | null; error?: string }> {
+    const client = getClient();
+
+    const { data: authData, error: authError } = await client.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+
+    if (authError) return { user: null, error: authError.message };
+    if (!authData.user) return { user: null, error: "Não foi possível criar o usuário." };
+
+    const { data: profileData, error: profileError } = await client
+      .from("users")
+      .insert({
+        id: authData.user.id,
+        email,
+        name,
+        role,
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (profileError) {
+      await client.auth.admin.deleteUser(authData.user.id);
+      return { user: null, error: profileError.message };
+    }
+
+    const session = await this.getSession();
+    if (session) {
+      await client.from("audit_logs").insert({
+        user_id: session.user.id,
+        user_email: session.user.email,
+        action: "CREATE",
+        entity_type: "user",
+        entity_id: profileData.id,
+        new_data: { email, name, role },
+      });
+    }
+
+    return {
+      user: {
+        id: profileData.id,
+        email: profileData.email,
+        name: profileData.name,
+        role: profileData.role as UserRole,
+        isActive: profileData.is_active,
+        createdAt: profileData.created_at,
+        lastLogin: profileData.last_login,
+      },
+    };
+  },
+
+  /** Atualiza usuário (apenas admin) */
+  async updateUser(
+    userId: string,
+    updates: { name?: string; role?: UserRole; isActive?: boolean }
+  ): Promise<{ success: boolean; error?: string }> {
+    const client = getClient();
+
+    const { error } = await client
+      .from("users")
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+
+    if (error) return { success: false, error: error.message };
+
+    const session = await this.getSession();
+    if (session) {
+      await client.from("audit_logs").insert({
+        user_id: session.user.id,
+        user_email: session.user.email,
+        action: "UPDATE",
+        entity_type: "user",
+        entity_id: userId,
+        new_data: updates,
+      });
+    }
+
+    return { success: true };
+  },
+
+  /** Desativa usuário (apenas admin) */
+  async deactivateUser(userId: string): Promise<{ success: boolean; error?: string }> {
+    return this.updateUser(userId, { isActive: false });
+  },
+
+  /** Reativa usuário (apenas admin) */
+  async activateUser(userId: string): Promise<{ success: boolean; error?: string }> {
+    return this.updateUser(userId, { isActive: true });
+  },
+
+  /** Exclui usuário permanentemente (apenas admin) */
+  async deleteUser(userId: string): Promise<{ success: boolean; error?: string }> {
+    const client = getClient();
+
+    const session = await this.getSession();
+    if (session) {
+      await client.from("audit_logs").insert({
+        user_id: session.user.id,
+        user_email: session.user.email,
+        action: "DELETE",
+        entity_type: "user",
+        entity_id: userId,
+      });
+    }
+
+    const { error } = await client.auth.admin.deleteUser(userId);
+    if (error) return { success: false, error: error.message };
+
+    return { success: true };
+  },
+
+  /* ---------- Auditoria ---------- */
+
+  /** Lista logs de auditoria */
+  async listAuditLogs(limit: number = 100): Promise<{ logs: AuditLog[]; error?: string }> {
+    if (!supabaseClient) return { logs: [], error: "Supabase não configurado" };
+
+    const { data, error } = await supabaseClient
+      .from("audit_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) return { logs: [], error: error.message };
+
+    return {
+      logs: data.map((log) => ({
+        id: log.id,
+        userId: log.user_id,
+        userEmail: log.user_email,
+        action: log.action,
+        entityType: log.entity_type,
+        entityId: log.entity_id,
+        oldData: log.old_data,
+        newData: log.new_data,
+        createdAt: log.created_at,
+      })),
+    };
+  },
+
+  /** Registra ação manual de auditoria */
+  async logAction(
+    action: "CREATE" | "UPDATE" | "DELETE",
+    entityType: string,
+    entityId: string,
+    oldData?: any,
+    newData?: any
+  ): Promise<void> {
+    if (!supabaseClient) return;
+
+    const session = await this.getSession();
+    if (!session) return;
+
+    await supabaseClient.from("audit_logs").insert({
+      user_id: session.user.id,
+      user_email: session.user.email,
+      action,
+      entity_type: entityType,
+      entity_id: entityId,
+      old_data: oldData,
+      new_data: newData,
+    });
   },
 };

@@ -11,7 +11,9 @@ export type ViewKey =
   | "relatorios"
   | "rh"
   | "orcamentos"
-  | "clients";
+  | "clients"
+  | "admin-users"
+  | "audit-logs";
 
 /* ---------- Produtos & Lotes ---------- */
 export type ProdutoTipo = "FARMACO" | "INSUMO" | "SERVICO";

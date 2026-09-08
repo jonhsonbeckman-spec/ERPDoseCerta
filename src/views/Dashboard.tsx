@@ -50,21 +50,11 @@ export function Dashboard({ go }: { go: (v: ViewKey) => void }) {
 
   return (
     <div className="space-y-6">
-      <header className="anim-rise flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div>
-          <p className="eyebrow capitalize">{weekdayLong()}</p>
-          <h1 className="mt-1 font-display text-[26px] font-bold leading-tight tracking-tight sm:text-3xl">
-            {dueToday > 0 ? `${dueToday} aplicaç${dueToday > 1 ? "ões" : "ão"} na fila` : "Agenda em dia"}
-          </h1>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => ui.openTransaction()} className="btn-press flex-1 rounded-xl border border-line bg-paper px-4 py-3 text-sm font-bold text-ink-soft hover:text-ink sm:flex-none sm:px-3.5 sm:py-2.5">
-            Lançamento
-          </button>
-          <button onClick={() => ui.openApplication()} className="btn-press inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-pine-900 px-4 py-3 text-sm font-bold text-white hover:bg-pine-800 sm:flex-none sm:py-2.5">
-            <IcSyringe size={16} /> Nova aplicação
-          </button>
-        </div>
+      <header className="anim-rise">
+        <p className="eyebrow capitalize">{weekdayLong()}</p>
+        <h1 className="mt-1 font-display text-[26px] font-bold leading-tight tracking-tight sm:text-3xl">
+          {dueToday > 0 ? `${dueToday} aplicaç${dueToday > 1 ? "ões" : "ão"} na fila` : "Agenda em dia"}
+        </h1>
       </header>
 
       {/* fila: doses de protocolo + alocações */}
