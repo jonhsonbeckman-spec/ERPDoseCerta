@@ -44,25 +44,32 @@ export interface AuditLog {
   createdAt: string;
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    "Variáveis de ambiente VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY não configuradas. " +
-    "O sistema requer Supabase para funcionar."
-  );
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+let supabaseClient: SupabaseClient | null = null;
+
+if (isSupabaseConfigured) {
+  supabaseClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
 }
 
-const supabaseClient: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
-
 export { supabaseClient };
+
+/* Helper para verificar se o Supabase está configurado */
+function getClient(): SupabaseClient {
+  if (!supabaseClient) {
+    throw new Error("Supabase não configurado. Configure as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY");
+  }
+  return supabaseClient;
+}
 
 /* ---------- API de autenticação corporativa ---------- */
 
@@ -75,6 +82,8 @@ function notifyAuthChange(session: AuthSession | null) {
 }
 
 async function getUserProfile(userId: string): Promise<AuthUser | null> {
+  if (!supabaseClient) return null;
+  
   const { data, error } = await supabaseClient
     .from("users")
     .select("id, email, name, role, is_active")
@@ -95,12 +104,13 @@ async function getUserProfile(userId: string): Promise<AuthUser | null> {
 export const auth = {
   /** Retorna a sessão atual com perfil do usuário */
   async getSession(): Promise<AuthSession | null> {
+    if (!supabaseClient) return null;
+    
     const { data } = await supabaseClient.auth.getSession();
     if (!data.session?.user) return null;
 
     const profile = await getUserProfile(data.session.user.id);
     if (!profile || !profile.isActive) {
-      // Usuário inativo ou não encontrado - faz logout
       await supabaseClient.auth.signOut();
       return null;
     }
@@ -113,6 +123,10 @@ export const auth = {
 
   /** Login com email e senha (apenas usuários cadastrados pelo Admin) */
   async signIn(email: string, password: string): Promise<{ session: AuthSession | null; error?: string }> {
+    if (!supabaseClient) {
+      return { session: null, error: "Supabase não configurado. Configure as variáveis de ambiente." };
+    }
+
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     
     if (error) {
@@ -162,10 +176,11 @@ export const auth = {
 
   /** Logout com registro de auditoria */
   async signOut(): Promise<void> {
+    if (!supabaseClient) return;
+
     const session = await this.getSession();
     
     if (session) {
-      // Registra log de auditoria antes do logout
       await supabaseClient.from("audit_logs").insert({
         user_id: session.user.id,
         user_email: session.user.email,
@@ -183,6 +198,12 @@ export const auth = {
   /** Escuta mudanças de sessão */
   onAuthStateChange(callback: AuthChangeCallback): () => void {
     authChangeCallbacks.push(callback);
+
+    if (!supabaseClient) {
+      return () => {
+        authChangeCallbacks = authChangeCallbacks.filter((cb) => cb !== callback);
+      };
+    }
 
     const { data } = supabaseClient.auth.onAuthStateChange(async (event, supabaseSession) => {
       if (supabaseSession?.user) {
@@ -211,6 +232,8 @@ export const auth = {
 
   /** Lista todos os usuários (apenas admin) */
   async listUsers(): Promise<{ users: SystemUser[]; error?: string }> {
+    if (!supabaseClient) return { users: [], error: "Supabase não configurado" };
+
     const { data, error } = await supabaseClient
       .from("users")
       .select("id, email, name, role, is_active, created_at, last_login")
@@ -238,19 +261,18 @@ export const auth = {
     name: string,
     role: UserRole
   ): Promise<{ user: SystemUser | null; error?: string }> {
-    // Cria usuário no Auth
-    const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
+    const client = getClient();
+
+    const { data: authData, error: authError } = await client.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { name },
     });
 
     if (authError) return { user: null, error: authError.message };
     if (!authData.user) return { user: null, error: "Não foi possível criar o usuário." };
 
-    // Cria perfil no banco
-    const { data: profileData, error: profileError } = await supabaseClient
+    const { data: profileData, error: profileError } = await client
       .from("users")
       .insert({
         id: authData.user.id,
@@ -263,15 +285,13 @@ export const auth = {
       .single();
 
     if (profileError) {
-      // Rollback: remove usuário do Auth
-      await supabaseClient.auth.admin.deleteUser(authData.user.id);
+      await client.auth.admin.deleteUser(authData.user.id);
       return { user: null, error: profileError.message };
     }
 
-    // Registra log de auditoria
     const session = await this.getSession();
     if (session) {
-      await supabaseClient.from("audit_logs").insert({
+      await client.from("audit_logs").insert({
         user_id: session.user.id,
         user_email: session.user.email,
         action: "CREATE",
@@ -299,7 +319,9 @@ export const auth = {
     userId: string,
     updates: { name?: string; role?: UserRole; isActive?: boolean }
   ): Promise<{ success: boolean; error?: string }> {
-    const { error } = await supabaseClient
+    const client = getClient();
+
+    const { error } = await client
       .from("users")
       .update({
         ...updates,
@@ -309,10 +331,9 @@ export const auth = {
 
     if (error) return { success: false, error: error.message };
 
-    // Registra log de auditoria
     const session = await this.getSession();
     if (session) {
-      await supabaseClient.from("audit_logs").insert({
+      await client.from("audit_logs").insert({
         user_id: session.user.id,
         user_email: session.user.email,
         action: "UPDATE",
@@ -337,10 +358,11 @@ export const auth = {
 
   /** Exclui usuário permanentemente (apenas admin) */
   async deleteUser(userId: string): Promise<{ success: boolean; error?: string }> {
-    // Registra log de auditoria antes da exclusão
+    const client = getClient();
+
     const session = await this.getSession();
     if (session) {
-      await supabaseClient.from("audit_logs").insert({
+      await client.from("audit_logs").insert({
         user_id: session.user.id,
         user_email: session.user.email,
         action: "DELETE",
@@ -349,8 +371,7 @@ export const auth = {
       });
     }
 
-    // Remove do Auth (cascade remove do banco via RLS)
-    const { error } = await supabaseClient.auth.admin.deleteUser(userId);
+    const { error } = await client.auth.admin.deleteUser(userId);
     if (error) return { success: false, error: error.message };
 
     return { success: true };
@@ -360,6 +381,8 @@ export const auth = {
 
   /** Lista logs de auditoria */
   async listAuditLogs(limit: number = 100): Promise<{ logs: AuditLog[]; error?: string }> {
+    if (!supabaseClient) return { logs: [], error: "Supabase não configurado" };
+
     const { data, error } = await supabaseClient
       .from("audit_logs")
       .select("*")
@@ -391,6 +414,8 @@ export const auth = {
     oldData?: any,
     newData?: any
   ): Promise<void> {
+    if (!supabaseClient) return;
+
     const session = await this.getSession();
     if (!session) return;
 
