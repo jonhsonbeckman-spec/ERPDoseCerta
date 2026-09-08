@@ -15,6 +15,8 @@ import { Relatorios } from "./views/stock/Relatorios";
 import { RH } from "./views/rh/RH";
 import { Orcamentos } from "./views/orcamentos/Orcamentos";
 import { Clients } from "./views/Clients";
+import { UserManagement } from "./views/admin/UserManagement";
+import { AuditLogs } from "./views/admin/AuditLogs";
 import { IcCalendar, IcLogOut, IcSyringe } from "./components/icons";
 import { alertasLotes } from "./lib/domain/analytics";
 import { diffDays, fmtLong, todayISO } from "./lib/utils";
@@ -29,6 +31,8 @@ const META: Record<ViewKey, { title: string; sub: string }> = {
   rh: { title: "RH & Custos", sub: "Custo real por pessoa · MOD × MOI" },
   orcamentos: { title: "Orçamentos", sub: "Precificação e aprovação que cria o paciente" },
   clients: { title: "Pacientes", sub: "Protocolos e orientações" },
+  "admin-users": { title: "Gestão de Usuários", sub: "Cadastro e permissões (Admin)" },
+  "audit-logs": { title: "Auditoria", sub: "Log de ações críticas (Admin)" },
 };
 
 function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
@@ -103,6 +107,8 @@ function Shell() {
           {view === "rh" && <RH />}
           {view === "orcamentos" && <Orcamentos />}
           {view === "clients" && <Clients />}
+          {view === "admin-users" && <UserManagement />}
+          {view === "audit-logs" && <AuditLogs />}
         </main>
         <footer className="hidden border-t border-line py-5 text-center text-[11px] text-ink-faint lg:block">
           DoseCerta · estoque com rastreabilidade Lote + Validade + CPF · dados salvos neste navegador

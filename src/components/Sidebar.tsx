@@ -7,7 +7,7 @@ import { alertasLotes } from "../lib/domain/analytics";
 import { useUi } from "./modals";
 import { useToast } from "./ui";
 import {
-  IcBox, IcCoins, IcFileText, IcGrid, IcIdCard, IcLogOut, IcRefresh, IcSyringe, IcTruck, IcUsers, IcWallet,
+  IcBox, IcClipboard, IcCoins, IcFileText, IcGrid, IcIdCard, IcLogOut, IcRefresh, IcShieldAlert, IcSyringe, IcTruck, IcUsers, IcWallet,
 } from "./icons";
 
 const NAV: { key: ViewKey; label: string; icon: typeof IcGrid }[] = [
@@ -21,11 +21,18 @@ const NAV: { key: ViewKey; label: string; icon: typeof IcGrid }[] = [
   { key: "clients", label: "Pacientes", icon: IcUsers },
 ];
 
+const ADMIN_NAV: { key: ViewKey; label: string; icon: typeof IcGrid }[] = [
+  { key: "admin-users", label: "Gestão de Usuários", icon: IcShieldAlert },
+  { key: "audit-logs", label: "Auditoria", icon: IcClipboard },
+];
+
 export function Sidebar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
   const { state, resetData } = useStore();
   const ui = useUi();
   const { push } = useToast();
   const { user, signOut } = useAuth();
+
+  const isAdmin = user?.role === "admin";
 
   const hoje = todayISO();
   const dueCount = state.alocacoes.filter((a) => diffDays(hoje, a.dataPrevista) <= 0).length;
@@ -74,6 +81,30 @@ export function Sidebar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void 
             </button>
           );
         })}
+
+        {/* Rotas exclusivas para Admin */}
+        {isAdmin && (
+          <>
+            <p className="px-3 pb-2 pt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">Administração</p>
+            {ADMIN_NAV.map((item) => {
+              const active = view === item.key;
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => go(item.key)}
+                  className={`btn-press group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold transition-colors ${
+                    active ? "bg-pine-800 text-white" : "text-white/55 hover:bg-pine-800/50 hover:text-white"
+                  }`}
+                >
+                  {active && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-lime-400" />}
+                  <Icon size={17} className={`transition-transform ${active ? "text-lime-400" : "group-hover:translate-x-0.5"}`} />
+                  {item.label}
+                </button>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       <div className="relative space-y-3 px-4 pb-5">
