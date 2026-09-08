@@ -8,7 +8,7 @@
 -- ============================================================
 
 -- Substitua 'admin@dosecerta.com' pelo email do usuário criado no Auth
-SELECT public.set_first_admin('admin@dosecerta.com');
+SELECT public.set_first_admin('jonhsonbeckman30@gmail.com');
 
 -- ============================================================
 -- VERIFICAÇÃO
