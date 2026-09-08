@@ -5,6 +5,8 @@ import type {
   Termination, Transaction, ViaAplicacao,
 } from "../types";
 import { buildEmpty, buildSeed, SEED_FORNECEDORES, SEED_INSUMOS } from "./seed";
+import { isSupabaseConfigured } from "./supabase/client";
+import { deletePatient, fetchPatients, upsertPatient } from "./supabase/patientsRepo";
 import { todayISO, uid } from "./utils";
 import {
   ajustarLote, descartarLote, DomainError, liberarLote, reconstituirLote, registrarEntrada, round2, setQuarentena,
@@ -129,6 +131,10 @@ export interface ConcluirComData extends ConcluirArgs {
 export interface StoreApi {
   state: AppState;
   hydrated: boolean;
+  /* sincronização de pacientes com o Supabase */
+  cloudMode: boolean; // true quando o Supabase está configurado
+  cloudLoading: boolean; // buscando pacientes da nuvem
+  cloudError: string | null; // última falha de sincronização
   addTransaction(tx: Omit<Transaction, "id">): Transaction;
   updateTransaction(id: string, patch: Omit<Transaction, "id">): void;
   deleteTransaction(id: string): void;
@@ -206,6 +212,31 @@ const Ctx = createContext<StoreApi | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(load);
   const [hydrated, setHydrated] = useState(false);
+  /* sincronização de pacientes com o Supabase */
+  const [cloudLoading, setCloudLoading] = useState(isSupabaseConfigured);
+  const [cloudError, setCloudError] = useState<string | null>(null);
+
+  /* Modo nuvem: busca os pacientes atualizados da nuvem (SELECT) ao carregar */
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await fetchPatients();
+        if (!cancelled) {
+          setState((prev) => ({ ...prev, clients: rows }));
+          setCloudError(null);
+        }
+      } catch (e) {
+        if (!cancelled) setCloudError(e instanceof Error ? e.message : "Falha ao carregar pacientes da nuvem.");
+      } finally {
+        if (!cancelled) setCloudLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setHydrated(true), 420);

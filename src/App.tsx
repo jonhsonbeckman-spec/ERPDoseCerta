@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { Component, useState, type ErrorInfo, type ReactNode } from "react";
 import type { ViewKey } from "./types";
 import { StoreProvider, useStore } from "./lib/store";
 import { ToastProvider } from "./components/ui";
 import { UiProvider, useUi } from "./components/modals";
+import { AuthProvider, useAuth } from "./components/AuthProvider";
+import { Login } from "./views/Login";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
 import { InstallModal } from "./components/InstallModal";
@@ -14,7 +16,7 @@ import { Relatorios } from "./views/stock/Relatorios";
 import { RH } from "./views/rh/RH";
 import { Orcamentos } from "./views/orcamentos/Orcamentos";
 import { Clients } from "./views/Clients";
-import { IcCalendar, IcDownload, IcPlus, IcSyringe } from "./components/icons";
+import { IcCalendar, IcDownload, IcLogOut, IcPlus, IcSyringe } from "./components/icons";
 import { alertasLotes } from "./lib/domain/analytics";
 import { diffDays, fmtLong, todayISO } from "./lib/utils";
 import { useMemo } from "react";
@@ -33,6 +35,7 @@ const META: Record<ViewKey, { title: string; sub: string }> = {
 function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
   const { state } = useStore();
   const ui = useUi();
+  const { user, signOut } = useAuth();
   const hoje = todayISO();
   const [install, setInstall] = useState(false);
 
@@ -74,6 +77,16 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
             <IcDownload size={13} />
             <span className="hidden sm:inline">Instalar</span>
           </button>
+          {user && (
+            <button
+              onClick={signOut}
+              title="Sair"
+              className="btn-press inline-flex items-center gap-1.5 rounded-lg border border-coral-100 bg-coral-50 px-3 py-1.5 text-[12px] font-bold text-coral-600 hover:bg-coral-100"
+            >
+              <IcLogOut size={13} />
+              <span className="hidden sm:inline">Sair</span>
+            </button>
+          )}
           <button onClick={() => ui.openTransaction()}
             className="btn-press hidden items-center gap-1.5 rounded-lg bg-leaf-600 px-3.5 py-1.5 text-[12.5px] font-bold text-white hover:bg-leaf-700 sm:inline-flex">
             <IcPlus size={13} /> Lançamento
@@ -112,14 +125,101 @@ function Shell() {
   );
 }
 
+/* ---------- proteção contra tela branca ---------- */
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("DoseCerta — erro de renderização:", error, info.componentStack);
+  }
+
+  private recarregar = () => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
+    }
+    window.location.reload();
+  };
+
+  private resetar = () => {
+    try {
+      localStorage.removeItem("dosecerta:v2");
+      localStorage.removeItem("dosecerta:v1");
+    } catch {
+      /* sem acesso */
+    }
+    this.recarregar();
+  };
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="app-bg flex min-h-screen items-center justify-center px-4">
+        <div className="anim-pop card w-full max-w-md p-6 text-center">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-coral-50 text-coral-600">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3.5 2.5 20h19L12 3.5Z" />
+              <path d="M12 9.5v5" />
+              <path d="M12 17.4h.01" strokeWidth="2.6" />
+            </svg>
+          </span>
+          <h1 className="mt-4 font-display text-xl font-bold tracking-tight">Algo deu errado</h1>
+          <p className="mt-1 text-[13px] text-ink-soft">
+            O app encontrou um erro ao carregar. Tente recarregar — seus dados continuam salvos.
+          </p>
+          <p className="num mx-auto mt-3 max-h-24 overflow-auto rounded-lg bg-mist px-3 py-2 text-left text-[11px] text-coral-700">
+            {this.state.error.message}
+          </p>
+          <div className="mt-5 flex flex-col gap-2">
+            <button onClick={this.recarregar} className="btn-big">Recarregar o app</button>
+            <button onClick={this.resetar} className="btn-press rounded-2xl border border-coral-100 bg-coral-50 px-5 py-3 text-[13px] font-bold text-coral-600 hover:bg-coral-100">
+              Limpar dados locais e recarregar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+
+function AuthenticatedApp() {
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="app-bg flex min-h-screen items-center justify-center">
+        <div className="anim-pop card p-8 text-center">
+          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-pine-900 text-lime-400">
+            <IcSyringe size={32} />
+          </div>
+          <p className="text-sm font-semibold text-ink-soft">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Login />;
+  }
+
+  return <Shell />;
+}
+
 export default function App() {
   return (
-    <StoreProvider>
-      <ToastProvider>
-        <UiProvider>
-          <Shell />
-        </UiProvider>
-      </ToastProvider>
-    </StoreProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <StoreProvider>
+          <ToastProvider>
+            <UiProvider>
+              <AuthenticatedApp />
+            </UiProvider>
+          </ToastProvider>
+        </StoreProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
