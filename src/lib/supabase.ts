@@ -141,7 +141,10 @@ export const auth = {
     
     if (!profile) {
       await supabaseClient.auth.signOut();
-      return { session: null, error: "Usuário não encontrado no sistema. Contate o administrador." };
+      return { 
+        session: null, 
+        error: "Usuário não encontrado na tabela 'users'. Execute o script SQL para criar o administrador: SELECT set_first_admin('seu@email.com')" 
+      };
     }
 
     if (!profile.isActive) {

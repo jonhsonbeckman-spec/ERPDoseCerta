@@ -3,7 +3,7 @@ import { useAuth } from "../components/AuthProvider";
 import { IcSyringe, IcCheck, IcAlert } from "../components/icons";
 
 export function Login() {
-  const { signIn } = useAuth();
+  const { signIn, connectionStatus, connectionMessage } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,6 +35,33 @@ export function Login() {
           <h1 className="font-display text-3xl font-bold tracking-tight text-ink">DoseCerta</h1>
           <p className="mt-1 text-sm text-ink-soft">Sistema Corporativo de Controle Financeiro</p>
         </div>
+
+        {/* Status de Conexão */}
+        {connectionStatus !== "ok" && (
+          <div className={`mb-4 rounded-xl border px-4 py-3 ${
+            connectionStatus === "error" 
+              ? "border-coral-200 bg-coral-50" 
+              : "border-amber-200 bg-amber-50"
+          }`}>
+            <div className="flex items-start gap-2">
+              <IcAlert size={16} className={`mt-0.5 shrink-0 ${
+                connectionStatus === "error" ? "text-coral-600" : "text-amber-600"
+              }`} />
+              <div>
+                <p className={`text-[12px] font-semibold ${
+                  connectionStatus === "error" ? "text-coral-700" : "text-amber-700"
+                }`}>
+                  {connectionStatus === "error" ? "Problema de Conexão" : "Verificando..."}
+                </p>
+                <p className={`mt-0.5 text-[11px] ${
+                  connectionStatus === "error" ? "text-coral-600" : "text-amber-600"
+                }`}>
+                  {connectionMessage}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Card de login */}
         <div className="card p-6">
@@ -81,7 +108,7 @@ export function Login() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || connectionStatus !== "ok"}
               className="btn-big disabled:opacity-60"
             >
               {loading ? (
@@ -101,12 +128,16 @@ export function Login() {
             </button>
           </form>
 
-          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <p className="mb-2 text-[12px] font-bold text-amber-700">Acesso Corporativo</p>
-            <p className="text-[11.5px] leading-snug text-ink-soft">
-              Este sistema é restrito a usuários autorizados. Caso não tenha acesso, 
-              entre em contato com o administrador do sistema.
-            </p>
+          <div className="mt-5 rounded-xl border border-pine-200 bg-pine-50 p-4">
+            <p className="mb-2 text-[12px] font-bold text-pine-800">🔧 Primeira vez? Configure o sistema:</p>
+            <ol className="space-y-1.5 text-[11px] leading-snug text-ink-soft list-decimal list-inside">
+              <li>Acesse <a href="https://supabase.com/dashboard/project/jkybevozjdgkjnqjbjvb/sql" target="_blank" className="underline font-semibold text-pine-700">SQL Editor do Supabase</a></li>
+              <li>Cole e execute o script <code className="bg-pine-100 px-1 rounded text-[10px]">setup-complete.sql</code></li>
+              <li>Vá em <strong>Authentication → Users → Add User</strong></li>
+              <li>Crie um usuário (marque "Auto Confirm User")</li>
+              <li>No SQL Editor, execute: <code className="bg-pine-100 px-1 rounded text-[10px]">SELECT set_first_admin('seu@email.com')</code></li>
+              <li>Faça login aqui com esse email e senha</li>
+            </ol>
           </div>
         </div>
 
