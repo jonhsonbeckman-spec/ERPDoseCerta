@@ -15,7 +15,7 @@ import { Relatorios } from "./views/stock/Relatorios";
 import { RH } from "./views/rh/RH";
 import { Orcamentos } from "./views/orcamentos/Orcamentos";
 import { Clients } from "./views/Clients";
-import { IcCalendar, IcLogOut, IcPlus, IcSyringe } from "./components/icons";
+import { IcCalendar, IcLogOut, IcSyringe } from "./components/icons";
 import { alertasLotes } from "./lib/domain/analytics";
 import { diffDays, fmtLong, todayISO } from "./lib/utils";
 import { useMemo } from "react";
@@ -80,10 +80,6 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
               <span className="hidden sm:inline">Sair</span>
             </button>
           )}
-          <button onClick={() => ui.openTransaction()}
-            className="btn-press hidden items-center gap-1.5 rounded-lg bg-leaf-600 px-3.5 py-1.5 text-[12.5px] font-bold text-white hover:bg-leaf-700 sm:inline-flex">
-            <IcPlus size={13} /> Lançamento
-          </button>
         </div>
       </div>
     </div>
