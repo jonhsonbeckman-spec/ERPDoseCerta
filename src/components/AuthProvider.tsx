@@ -43,12 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (error) {
           // Se o erro for de tabela não existe, a conexão está ok mas o schema não foi criado
-          if (error.message.includes("relation") || error.message.includes("does not exist") || error.code === "42P01") {
+          if (error.code === "42P01" || error.message.includes("does not exist")) {
             setConnectionStatus("error");
             setConnectionMessage("Conectado ao Supabase ✓, mas as tabelas não foram criadas. Execute o script SQL no Supabase (SQL Editor).");
-          } else if (error.code === "PGRST301" || error.message.includes("policy")) {
-            setConnectionStatus("error");
-            setConnectionMessage("Conectado ao Supabase ✓, mas as políticas RLS estão bloqueando. Execute o script SQL no Supabase (SQL Editor).");
+          } else if (error.code === "PGRST301" || error.message.includes("policy") || error.message.includes("permission")) {
+            // Erro de permissão RLS - as tabelas existem mas o acesso está bloqueado
+            setConnectionStatus("ok");
+            setConnectionMessage("Conectado ao Supabase ✓");
           } else {
             setConnectionStatus("error");
             setConnectionMessage(`Erro: ${error.message}`);
