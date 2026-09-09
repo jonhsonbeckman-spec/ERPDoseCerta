@@ -249,7 +249,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch { /* indisponível */ }
   }, [state]);
 
-  const api = useMemo(() => {
+  const api = useMemo<StoreApi>(() => {
     const guard = (fn: (s: AppState) => AppState): Result => {
       try {
         setState(fn(state));
@@ -263,8 +263,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       state,
       hydrated,
       cloudMode: isSupabaseConfigured,
-      cloudLoading: false,
-      cloudError: null,
+      cloudLoading,
+      cloudError,
       addTransaction(tx: Omit<Transaction, "id">) {
         const full = { ...tx, id: uid() };
         setState((prev) => ({ ...prev, transactions: [full, ...prev.transactions] }));
@@ -600,7 +600,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState(buildSeed());
       },
     };
-  }, [state, hydrated]);
+  }, [state, hydrated, cloudLoading, cloudError]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
