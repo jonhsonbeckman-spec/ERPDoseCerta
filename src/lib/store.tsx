@@ -249,7 +249,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch { /* indisponível */ }
   }, [state]);
 
-  const api = useMemo<StoreApi>(() => {
+  const api = useMemo(() => {
     const guard = (fn: (s: AppState) => AppState): Result => {
       try {
         setState(fn(state));
@@ -262,7 +262,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return {
       state,
       hydrated,
-      addTransaction(tx) {
+      cloudMode: isSupabaseConfigured,
+      cloudLoading: false,
+      cloudError: null,
+      addTransaction(tx: Omit<Transaction, "id">) {
         const full = { ...tx, id: uid() };
         setState((prev) => ({ ...prev, transactions: [full, ...prev.transactions] }));
         return full;
