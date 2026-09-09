@@ -3,9 +3,6 @@ import type { ViewKey } from "./types";
 import { StoreProvider, useStore } from "./lib/store";
 import { ToastProvider } from "./components/ui";
 import { UiProvider, useUi } from "./components/modals";
-import { AuthProvider, useAuth } from "./components/AuthProvider";
-import { isSupabaseConfigured } from "./lib/supabase";
-import { Login } from "./views/Login";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
 import { Dashboard } from "./views/Dashboard";
@@ -18,7 +15,7 @@ import { Orcamentos } from "./views/orcamentos/Orcamentos";
 import { Clients } from "./views/Clients";
 import { UserManagement } from "./views/admin/UserManagement";
 import { AuditLogs } from "./views/admin/AuditLogs";
-import { IcAlert, IcCalendar, IcLogOut, IcSyringe } from "./components/icons";
+import { IcAlert, IcCalendar, IcSyringe } from "./components/icons";
 import { alertasLotes } from "./lib/domain/analytics";
 import { diffDays, fmtLong, todayISO } from "./lib/utils";
 
@@ -38,7 +35,6 @@ const META: Record<ViewKey, { title: string; sub: string }> = {
 function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
   const { state } = useStore();
   const ui = useUi();
-  const { user, signOut } = useAuth();
   const hoje = todayISO();
 
   const dueCount = state.alocacoes.filter((a) => diffDays(hoje, a.dataPrevista) <= 0).length;
@@ -74,16 +70,6 @@ function Topbar({ view, go }: { view: ViewKey; go: (v: ViewKey) => void }) {
             <span className="num">{dueCount}</span>
             <span className="hidden sm:inline">hoje</span>
           </button>
-          {user && (
-            <button
-              onClick={signOut}
-              title="Sair"
-              className="btn-press inline-flex items-center gap-1.5 rounded-lg border border-coral-100 bg-coral-50 px-3 py-1.5 text-[12px] font-bold text-coral-600 hover:bg-coral-100"
-            >
-              <IcLogOut size={13} />
-              <span className="hidden sm:inline">Sair</span>
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -179,101 +165,16 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
-function ConfigScreen() {
-  return (
-    <div className="app-bg flex min-h-screen items-center justify-center px-4 py-8">
-      <div className="anim-pop w-full max-w-md">
-        <div className="card p-8 text-center">
-          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-amber-100 text-amber-700">
-            <IcAlert size={32} />
-          </div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Configuração Necessária</h1>
-          <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-            O DoseCerta requer configuração do Supabase para funcionar.
-          </p>
-          <div className="mt-6 space-y-3 text-left">
-            <div className="rounded-xl border border-line bg-mist/50 p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Passo 1</p>
-              <p className="mt-1 text-sm font-semibold text-ink">Configure as variáveis de ambiente</p>
-              <p className="mt-1 text-xs text-ink-soft">
-                Crie um arquivo <code className="rounded bg-paper px-1.5 py-0.5 font-mono text-[11px]">.env</code> na raiz do projeto com:
-              </p>
-              <pre className="mt-2 overflow-x-auto rounded-lg bg-pine-900 p-3 text-[11px] text-lime-400">
-{`VITE_SUPABASE_URL=https://seu-projeto.supabase.co
-VITE_SUPABASE_ANON_KEY=sua-chave-anon`}
-              </pre>
-            </div>
-            <div className="rounded-xl border border-line bg-mist/50 p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Passo 2</p>
-              <p className="mt-1 text-sm font-semibold text-ink">Execute o schema SQL</p>
-              <p className="mt-1 text-xs text-ink-soft">
-                Execute <code className="rounded bg-paper px-1.5 py-0.5 font-mono text-[11px]">supabase/schema.sql</code> no SQL Editor do Supabase
-              </p>
-            </div>
-            <div className="rounded-xl border border-line bg-mist/50 p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Passo 3</p>
-              <p className="mt-1 text-sm font-semibold text-ink">Crie o primeiro Admin</p>
-              <p className="mt-1 text-xs text-ink-soft">
-                Execute <code className="rounded bg-paper px-1.5 py-0.5 font-mono text-[11px]">supabase/seed-admin.sql</code> após criar o usuário no Auth
-              </p>
-            </div>
-          </div>
-          <div className="mt-6 rounded-xl border border-leaf-200 bg-leaf-50 p-4">
-            <p className="text-xs font-bold text-leaf-700">📚 Documentação Completa</p>
-            <p className="mt-1 text-xs text-ink-soft">
-              Consulte os arquivos <strong>README.md</strong> e <strong>SETUP.md</strong> para instruções detalhadas.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AuthenticatedApp() {
-  const { session, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="app-bg flex min-h-screen items-center justify-center">
-        <div className="anim-pop card p-8 text-center">
-          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-pine-900 text-lime-400">
-            <IcSyringe size={32} />
-          </div>
-          <p className="text-sm font-semibold text-ink-soft">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return <Login />;
-  }
-
-  return <Shell />;
-}
-
 export default function App() {
-  // Verifica se o Supabase está configurado ANTES de renderizar os providers
-  if (!isSupabaseConfigured) {
-    return (
-      <ErrorBoundary>
-        <ConfigScreen />
-      </ErrorBoundary>
-    );
-  }
-
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <StoreProvider>
-          <ToastProvider>
-            <UiProvider>
-              <AuthenticatedApp />
-            </UiProvider>
-          </ToastProvider>
-        </StoreProvider>
-      </AuthProvider>
+      <StoreProvider>
+        <ToastProvider>
+          <UiProvider>
+            <Shell />
+          </UiProvider>
+        </ToastProvider>
+      </StoreProvider>
     </ErrorBoundary>
   );
 }
