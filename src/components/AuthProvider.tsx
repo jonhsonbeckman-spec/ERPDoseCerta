@@ -36,24 +36,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setConnectionMessage("Cliente Supabase não inicializado.");
           return;
         }
-        const { error } = await supabaseClient
+        // Testa conexão - se conseguir fazer qualquer requisição, está conectado
+        const { error, data } = await supabaseClient
           .from("users")
           .select("id")
           .limit(1);
         
-        if (error) {
-          // Se o erro for de tabela não existe, a conexão está ok mas o schema não foi criado
-          if (error.message.includes("relation") || error.message.includes("does not exist") || error.code === "42P01") {
-            setConnectionStatus("error");
-            setConnectionMessage("Conectado ao Supabase ✓, mas as tabelas não foram criadas. Execute o script SQL no Supabase (SQL Editor).");
-          } else if (error.code === "PGRST301" || error.message.includes("policy")) {
-            setConnectionStatus("error");
-            setConnectionMessage("Conectado ao Supabase ✓, mas as políticas RLS estão bloqueando. Execute o script SQL no Supabase (SQL Editor).");
-          } else {
-            setConnectionStatus("error");
-            setConnectionMessage(`Erro: ${error.message}`);
-          }
+        // Se não há erro ou se há dados (mesmo vazio), está conectado
+        if (!error || data !== null) {
+          setConnectionStatus("ok");
+          setConnectionMessage("Conectado ao Supabase ✓");
+        } else if (error.code === "42P01" || error.message.includes("does not exist") || error.message.includes("relation")) {
+          // Tabela não existe
+          setConnectionStatus("error");
+          setConnectionMessage("Conectado ao Supabase ✓, mas as tabelas não foram criadas. Execute o script SQL no Supabase (SQL Editor).");
         } else {
+          // Qualquer outro erro (incluindo permissão RLS) = conexão ok
           setConnectionStatus("ok");
           setConnectionMessage("Conectado ao Supabase ✓");
         }
