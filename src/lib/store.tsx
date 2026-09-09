@@ -131,10 +131,10 @@ export interface ConcluirComData extends ConcluirArgs {
 export interface StoreApi {
   state: AppState;
   hydrated: boolean;
-  /* sincronização de pacientes com o Supabase */
-  cloudMode: boolean; // true quando o Supabase está configurado
-  cloudLoading: boolean; // buscando pacientes da nuvem
-  cloudError: string | null; // última falha de sincronização
+  /* sincronização com o Supabase */
+  cloudMode: boolean;
+  cloudLoading: boolean;
+  cloudError: string | null;
   addTransaction(tx: Omit<Transaction, "id">): Transaction;
   updateTransaction(id: string, patch: Omit<Transaction, "id">): void;
   deleteTransaction(id: string): void;
