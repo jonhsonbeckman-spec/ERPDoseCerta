@@ -1,6 +1,6 @@
 import { Component, useState, useMemo, type ErrorInfo, type ReactNode } from "react";
 import type { ViewKey } from "./types";
-import { StoreProvider, useStore } from "./lib/store-cloud";
+import { StoreProvider, useStore } from "./lib/store";
 import { ToastProvider } from "./components/ui";
 import { UiProvider, useUi } from "./components/modals";
 import { Sidebar } from "./components/Sidebar";

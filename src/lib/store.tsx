@@ -131,10 +131,10 @@ export interface ConcluirComData extends ConcluirArgs {
 export interface StoreApi {
   state: AppState;
   hydrated: boolean;
-  /* sincronização de pacientes com o Supabase */
-  cloudMode: boolean; // true quando o Supabase está configurado
-  cloudLoading: boolean; // buscando pacientes da nuvem
-  cloudError: string | null; // última falha de sincronização
+  /* sincronização com o Supabase */
+  cloudMode: boolean;
+  cloudLoading: boolean;
+  cloudError: string | null;
   addTransaction(tx: Omit<Transaction, "id">): Transaction;
   updateTransaction(id: string, patch: Omit<Transaction, "id">): void;
   deleteTransaction(id: string): void;
@@ -249,7 +249,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch { /* indisponível */ }
   }, [state]);
 
-  const api = useMemo(() => {
+  const api = useMemo<StoreApi>(() => {
     const guard = (fn: (s: AppState) => AppState): Result => {
       try {
         setState(fn(state));
@@ -263,8 +263,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       state,
       hydrated,
       cloudMode: isSupabaseConfigured,
-      cloudLoading: false,
-      cloudError: null,
+      cloudLoading,
+      cloudError,
       addTransaction(tx: Omit<Transaction, "id">) {
         const full = { ...tx, id: uid() };
         setState((prev) => ({ ...prev, transactions: [full, ...prev.transactions] }));
@@ -600,7 +600,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState(buildSeed());
       },
     };
-  }, [state, hydrated]);
+  }, [state, hydrated, cloudLoading, cloudError]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
