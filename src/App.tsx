@@ -80,11 +80,11 @@ function Shell() {
   const [view, setView] = useState<ViewKey>("dashboard");
 
   return (
-    <div className="app-bg min-h-screen">
+    <div className="app-bg min-h-screen overflow-auto">
       <Sidebar view={view} go={setView} />
-      <div className="lg:pl-[248px]">
+      <div className="lg:pl-[248px] overflow-auto">
         <Topbar view={view} go={setView} />
-        <main className="mx-auto max-w-[1240px] px-4 pb-32 pt-4 sm:px-6 sm:pt-6 lg:pb-16">
+        <main className="mx-auto max-w-[1240px] px-4 pb-32 pt-4 sm:px-6 sm:pt-6 lg:pb-16 overflow-auto">
           {view === "dashboard" && <Dashboard go={setView} />}
           {view === "finance" && <Finance />}
           {view === "estoque" && <Estoque />}
