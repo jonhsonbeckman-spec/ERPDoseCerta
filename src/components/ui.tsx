@@ -61,12 +61,12 @@ export function Modal({ open, onClose, title, subtitle, children, wide }: {
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[70] flex items-end justify-center overflow-auto sm:items-center sm:p-4">
       <div className="anim-fade absolute inset-0 bg-pine-950/55 backdrop-blur-[2px]" onClick={onClose} />
       <div role="dialog" aria-modal="true"
-        className={`modal-panel relative w-full rounded-t-3xl border-t border-line bg-paper shadow-[var(--shadow-pop)] sm:rounded-2xl sm:border ${wide ? "sm:max-w-xl" : "sm:max-w-md"} max-h-[92dvh] overflow-y-auto`}>
+        className={`modal-panel relative w-full rounded-t-3xl border-t border-line bg-paper shadow-[var(--shadow-pop)] sm:rounded-2xl sm:border ${wide ? "sm:max-w-xl" : "sm:max-w-md"} max-h-[92dvh] overflow-auto`}>
         <div className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-line sm:hidden" />
-        <div className="flex items-start justify-between gap-4 border-b border-line-soft px-5 py-4">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line-soft bg-paper px-5 py-4">
           <div>
             <h2 className="font-display text-lg font-bold tracking-tight text-ink">{title}</h2>
             {subtitle && <p className="mt-0.5 text-xs text-ink-soft">{subtitle}</p>}
@@ -75,7 +75,7 @@ export function Modal({ open, onClose, title, subtitle, children, wide }: {
             <IcX size={15} />
           </button>
         </div>
-        <div className="safe-bottom px-5 py-4">{children}</div>
+        <div className="safe-bottom overflow-auto px-5 py-4">{children}</div>
       </div>
     </div>
   );
